@@ -3,7 +3,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication, QStackedWidget
 from PySide6.QtGui import QIcon
 from PySide6.QtCore import Qt
-from screens.auth.welcome import WelcomeScreen
+from screens.auth.welcome import WelcomeScreen  
 from screens.auth.login import LoginScreen
 from screens.auth.register import RegisterScreen
 from screens.reader.dashboard import ReaderDashboard
@@ -85,15 +85,19 @@ class LibraryApp:
         y = (screen_geometry.height() - height) // 2
         self.stack.move(x, y)
         
-        # Enable maximize/minimize buttons with proper window flags
+        # Modify window flags to ensure proper window behavior
         self.stack.setWindowFlags(
-            Qt.Window | 
-            Qt.WindowMinimizeButtonHint | 
-            Qt.WindowMaximizeButtonHint | 
-            Qt.WindowCloseButtonHint |
+            Qt.Window |
+            Qt.CustomizeWindowHint |  # Add this
             Qt.WindowTitleHint |
-            Qt.WindowSystemMenuHint
+            Qt.WindowSystemMenuHint |
+            Qt.WindowMinimizeButtonHint |
+            Qt.WindowMaximizeButtonHint |
+            Qt.WindowCloseButtonHint
         )
+        
+        # Add this line to ensure proper window state
+        self.stack.setWindowState(Qt.WindowNoState)
         
         self.stack.show()
         self.switch_to_welcome()

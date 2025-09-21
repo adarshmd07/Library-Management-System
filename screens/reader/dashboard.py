@@ -8,11 +8,11 @@ from widgets.book_card import BookCard
 from widgets.loan_card import LoanCard
 from styles.style_manager import StyleManager
 from config import Config
+from database import db_manager
 
 class ReaderDashboard(QWidget):
     """
-    Modern dashboard for readers.
-    Displays available books, allows searching, and provides navigation.
+    Modern dashboard for readers with book image support and full database integration.
     """
     def __init__(self, app):
         super().__init__()
@@ -27,21 +27,16 @@ class ReaderDashboard(QWidget):
         self.username = username
         self.user_id = user_id
         self.welcome_label.setText(f"Welcome back, {username}!")
-        # Load user-specific data after setting user info
-        self.load_user_loans()
-        self.load_reader_stats()
+        self.load_data()
     
     def setup_ui(self):
-        # Main layout
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # Navigation bar
         self.nav_bar = NavigationBar(self.app)
         main_layout.addWidget(self.nav_bar)
         
-        # Create a scroll area for the entire content
         main_scroll = QScrollArea()
         main_scroll.setWidgetResizable(True)
         main_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -56,25 +51,22 @@ class ReaderDashboard(QWidget):
             }
         """)
         
-        # Content widget for the scroll area
         content_widget = QWidget()
         main_scroll.setWidget(content_widget)
         
-        # Content layout
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(30, 30, 30, 30)
         content_layout.setSpacing(30)
         
-        # Header section with welcome and stats
+        # Header with welcome and stats
         header_layout = QVBoxLayout()
         header_layout.setSpacing(15)
         
-        # Welcome message
         self.welcome_label = QLabel(f"Welcome, {self.username}!")
         StyleManager.style_title_label(self.welcome_label, size=28)
         header_layout.addWidget(self.welcome_label)
         
-        # Stats cards row
+        # Stats cards
         stats_layout = QHBoxLayout()
         stats_layout.setSpacing(20)
         
@@ -86,12 +78,11 @@ class ReaderDashboard(QWidget):
         
         available_title = QLabel("Available Books")
         StyleManager.style_card_title(available_title)
-        available_value = QLabel("0")
-        StyleManager.style_card_value(available_value)
-        available_value.setProperty("id", "available-count")
+        self.available_count_label = QLabel("0")
+        StyleManager.style_card_value(self.available_count_label)
         
         available_layout.addWidget(available_title)
-        available_layout.addWidget(available_value)
+        available_layout.addWidget(self.available_count_label)
         stats_layout.addWidget(available_card)
         
         # Borrowed books card
@@ -102,36 +93,62 @@ class ReaderDashboard(QWidget):
         
         borrowed_title = QLabel("Books Borrowed")
         StyleManager.style_card_title(borrowed_title)
-        borrowed_value = QLabel("0")
-        StyleManager.style_card_value(borrowed_value)
-        borrowed_value.setProperty("id", "borrowed-count")
+        self.borrowed_count_label = QLabel("0")
+        StyleManager.style_card_value(self.borrowed_count_label)
         
         borrowed_layout.addWidget(borrowed_title)
-        borrowed_layout.addWidget(borrowed_value)
+        borrowed_layout.addWidget(self.borrowed_count_label)
         stats_layout.addWidget(borrowed_card)
         
-        # Fines card
-        fines_card = QFrame()
-        StyleManager.style_dashboard_card(fines_card)
-        fines_layout = QVBoxLayout(fines_card)
-        fines_layout.setSpacing(10)
+        # Overdue books card
+        overdue_card = QFrame()
+        StyleManager.style_dashboard_card(overdue_card)
+        overdue_layout = QVBoxLayout(overdue_card)
+        overdue_layout.setSpacing(10)
         
-        fines_title = QLabel("Current Fines")
-        StyleManager.style_card_title(fines_title)
-        fines_value = QLabel("$0.00")
-        StyleManager.style_card_value(fines_value)
-        fines_value.setProperty("id", "fines-amount")
+        overdue_title = QLabel("Overdue Books")
+        StyleManager.style_card_title(overdue_title)
+        self.overdue_count_label = QLabel("0")
+        StyleManager.style_card_value(self.overdue_count_label)
+        self.overdue_count_label.setStyleSheet("color: #dc2626; font-weight: bold; font-size: 24px;")
         
-        fines_layout.addWidget(fines_title)
-        fines_layout.addWidget(fines_value)
-        stats_layout.addWidget(fines_card)
+        overdue_layout.addWidget(overdue_title)
+        overdue_layout.addWidget(self.overdue_count_label)
+        stats_layout.addWidget(overdue_card)
         
         header_layout.addLayout(stats_layout)
         content_layout.addLayout(header_layout)
         
-        # Create tab widget for Books and My Loans
+        # Tab widget
         self.tabs = QTabWidget()
-        self.tabs.setProperty("class", "dashboard-tabs")
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                background: white;
+            }}
+            QTabBar::tab {{
+                background: #f0f2f5;
+                border: 1px solid #e2e8f0;
+                border-bottom: none;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                padding: 10px 20px;
+                margin-right: 2px;
+                color: #4a5568;
+                font-weight: 500;
+            }}
+            QTabBar::tab:selected {{
+                background: white;
+                border-color: #e2e8f0;
+                border-bottom-color: white;
+                font-weight: bold;
+                color: {Config.PRIMARY_COLOR};
+            }}
+            QTabBar::tab:hover:!selected {{
+                background: #e8edf2;
+            }}
+        """)
         
         # Books tab
         books_tab = QWidget()
@@ -154,6 +171,7 @@ class ReaderDashboard(QWidget):
         self.search_input.setPlaceholderText("Search by title, author, or genre...")
         self.search_input.setProperty("class", "auth-input")
         self.search_input.setMinimumHeight(45)
+        self.search_input.returnPressed.connect(self.perform_search)
         
         search_btn = QPushButton("Search")
         StyleManager.style_primary_button(search_btn)
@@ -181,24 +199,22 @@ class ReaderDashboard(QWidget):
         books_title = QLabel("Available Books")
         StyleManager.style_title_label(books_title, size=22)
         
-        books_count = QLabel("0 books")
-        StyleManager.style_subtitle_label(books_count)
-        books_count.setProperty("id", "books-count")
+        self.books_count_label = QLabel("0 books")
+        StyleManager.style_subtitle_label(self.books_count_label)
         
         books_header.addWidget(books_title)
         books_header.addStretch()
-        books_header.addWidget(books_count)
+        books_header.addWidget(self.books_count_label)
         books_section.addLayout(books_header)
         
-        # Books grid (no nested scroll area)
+        # Books grid
         self.books_grid_widget = QWidget()
         self.books_grid_layout = QGridLayout(self.books_grid_widget)
-        self.books_grid_layout.setSpacing(20)
+        self.books_grid_layout.setSpacing(25)
         self.books_grid_layout.setAlignment(Qt.AlignTop)
-        self.books_grid_layout.setColumnStretch(3, 1)  # Add stretch for responsive layout
+        self.books_grid_layout.setColumnStretch(4, 1)
         
         books_section.addWidget(self.books_grid_widget)
-        
         books_tab_layout.addLayout(books_section)
         
         # My Loans tab
@@ -211,16 +227,14 @@ class ReaderDashboard(QWidget):
         loans_title = QLabel("My Current Loans")
         StyleManager.style_title_label(loans_title, size=22)
         
-        loans_count = QLabel("0 loans")
-        StyleManager.style_subtitle_label(loans_count)
-        loans_count.setProperty("id", "loans-count")
+        self.loans_count_label = QLabel("0 loans")
+        StyleManager.style_subtitle_label(self.loans_count_label)
         
         loans_header.addWidget(loans_title)
         loans_header.addStretch()
-        loans_header.addWidget(loans_count)
+        loans_header.addWidget(self.loans_count_label)
         loans_tab_layout.addLayout(loans_header)
         
-        # Loans container (no nested scroll area)
         self.loans_container = QWidget()
         self.loans_layout = QVBoxLayout(self.loans_container)
         self.loans_layout.setSpacing(15)
@@ -233,68 +247,113 @@ class ReaderDashboard(QWidget):
         self.tabs.addTab(loans_tab, "My Loans")
         
         content_layout.addWidget(self.tabs)
-        
-        # Add the scroll area to the main layout instead of the content frame
         main_layout.addWidget(main_scroll)
         
-        # Set size policies to ensure proper expansion
         main_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
-        # Load initial data
         self.load_data()
 
     def load_data(self):
-        """Load all data for the dashboard"""
+        """Load all dashboard data"""
         self.load_books_data()
-        self.load_reader_stats()
         self.load_user_loans()
+        self.load_reader_stats()
+    
+    def load_reader_stats(self):
+        """Load reader statistics from database"""
+        try:
+            # Total available books
+            available_count = db_manager.fetch_one("SELECT SUM(available_copies) FROM books")[0] or 0
+            self.available_count_label.setText(str(available_count))
+            
+            if not self.user_id:
+                self.borrowed_count_label.setText("0")
+                self.overdue_count_label.setText("0")
+                return
+            
+            # User's borrowed books
+            borrowed_count = db_manager.fetch_one(
+                "SELECT COUNT(*) FROM loans WHERE user_id = ? AND return_date IS NULL", 
+                (self.user_id,)
+            )[0] or 0
+            self.borrowed_count_label.setText(str(borrowed_count))
+            
+            # User's overdue books
+            overdue_count = db_manager.fetch_one(
+                """SELECT COUNT(*) FROM loans 
+                   WHERE user_id = ? AND return_date IS NULL 
+                   AND julianday('now') > julianday(DATE(loan_date, '+14 days'))""", 
+                (self.user_id,)
+            )[0] or 0
+            self.overdue_count_label.setText(str(overdue_count))
+            
+        except Exception as e:
+            print(f"Error loading reader stats: {e}")
+            self.available_count_label.setText("0")
+            self.borrowed_count_label.setText("0")
+            self.overdue_count_label.setText("0")
     
     def load_user_loans(self):
-        """
-        Load the current user's loan information.
-        This method is called during login and when refreshing data.
-        """
+        """Load the current user's loan information"""
         if not self.user_id:
-            # No user logged in, clear loans display
             self.clear_loans_display()
+            self.loans_count_label.setText("0 loans")
             return
+        
+        try:
+            query = """
+                SELECT l.id, b.title, b.author, b.image_path, l.loan_date, 
+                       DATE(l.loan_date, '+14 days') as due_date,
+                       julianday('now') - julianday(DATE(l.loan_date, '+14 days')) as days_overdue
+                FROM loans l
+                JOIN books b ON l.book_id = b.id
+                WHERE l.user_id = ? AND l.return_date IS NULL
+                ORDER BY l.loan_date DESC
+            """
+            loans = db_manager.fetch_all(query, (self.user_id,))
             
-        # PLACEHOLDER: Sample loan data for frontend demonstration
-        # In the final version, this should query your database for the current user's loans
-        user_loans = [
-            {"id": 1, "book_title": "To Kill a Mockingbird", "author": "Harper Lee", 
-             "due_date": "2023-12-15", "status": "Active", "days_remaining": 5},
-            {"id": 2, "book_title": "1984", "author": "George Orwell", 
-             "due_date": "2023-12-05", "status": "Overdue", "days_overdue": 3},
-            {"id": 3, "book_title": "The Catcher in the Rye", "author": "J.D. Salinger", 
-             "due_date": "2023-12-20", "status": "Active", "days_remaining": 10}
-        ]
-        
-        # Update the borrowed count with the actual number of loans
-        borrowed_count = self.findChild(QLabel, "borrowed-count")
-        if borrowed_count:
-            borrowed_count.setText(str(len(user_loans)))
-        
-        # Update loans count
-        loans_count = self.findChild(QLabel, "loans-count")
-        if loans_count:
-            loans_count.setText(f"{len(user_loans)} loan{'s' if len(user_loans) != 1 else ''}")
-        
-        # Clear existing loans display
-        self.clear_loans_display()
-        
-        if not user_loans:
-            no_loans_label = QLabel("You don't have any active loans.")
-            no_loans_label.setAlignment(Qt.AlignCenter)
-            StyleManager.style_subtitle_label(no_loans_label, size=16)
-            self.loans_layout.addWidget(no_loans_label)
-            return
-        
-        # Add loan cards to layout
-        for loan_data in user_loans:
-            loan_card = LoanCard(loan_data, self.app)
-            self.loans_layout.addWidget(loan_card)
+            self.loans_count_label.setText(f"{len(loans)} loan{'s' if len(loans) != 1 else ''}")
+            
+            self.clear_loans_display()
+            
+            if not loans:
+                no_loans_label = QLabel("You don't have any active loans.")
+                no_loans_label.setAlignment(Qt.AlignCenter)
+                StyleManager.style_subtitle_label(no_loans_label, size=16)
+                no_loans_label.setStyleSheet("color: #666666; padding: 40px;")
+                self.loans_layout.addWidget(no_loans_label)
+                return
+            
+            for loan in loans:
+                loan_id, book_title, author, image_path, loan_date, due_date, days_overdue = loan
+                
+                if days_overdue > 0:
+                    status = "Overdue"
+                    days_info = int(days_overdue)
+                else:
+                    status = "Active"
+                    days_info = int(-days_overdue)
+                
+                loan_data = {
+                    "id": loan_id,
+                    "book_title": book_title,
+                    "author": author,
+                    "image_path": image_path,
+                    "loan_date": loan_date,
+                    "due_date": due_date,
+                    "status": status,
+                    "days_remaining": days_info if status == "Active" else None,
+                    "days_overdue": days_info if status == "Overdue" else None
+                }
+                
+                loan_card = LoanCard(loan_data, self.app)
+                self.loans_layout.addWidget(loan_card)
+                
+        except Exception as e:
+            print(f"Error loading user loans: {e}")
+            self.clear_loans_display()
+            self.loans_count_label.setText("0 loans")
     
     def clear_loans_display(self):
         """Clear all loan cards from the loans layout"""
@@ -305,7 +364,7 @@ class ReaderDashboard(QWidget):
                 widget.deleteLater()
     
     def clear_book_grid(self):
-        """Clears all book cards from the grid layout."""
+        """Clear all book cards from the grid layout"""
         while self.books_grid_layout.count():
             item = self.books_grid_layout.takeAt(0)
             widget = item.widget()
@@ -313,111 +372,166 @@ class ReaderDashboard(QWidget):
                 widget.deleteLater()
 
     def load_books_data(self, search_query=""):
-        """
-        Loads book data and populates the book grid.
-        Uses placeholder data for frontend demonstration.
-        """
+        """Load book data from database with optional search"""
         self.clear_book_grid()
         
-        # PLACEHOLDER: Sample book data for frontend demonstration
-        sample_books = [
-            {"id": 1, "title": "The Great Gatsby", "author": "F. Scott Fitzgerald", 
-             "status": "Available", "available_copies": 3, "total_copies": 5},
-            {"id": 2, "title": "To Kill a Mockingbird", "author": "Harper Lee", 
-             "status": "Available", "available_copies": 2, "total_copies": 4},
-            {"id": 3, "title": "1984", "author": "George Orwell", 
-             "status": "Checked Out", "available_copies": 0, "total_copies": 3},
-            {"id": 4, "title": "Pride and Prejudice", "author": "Jane Austen", 
-             "status": "Available", "available_copies": 1, "total_copies": 2},
-            {"id": 5, "title": "The Catcher in the Rye", "author": "J.D. Salinger", 
-             "status": "Available", "available_copies": 4, "total_copies": 6},
-            {"id": 6, "title": "Brave New World", "author": "Aldous Huxley", 
-             "status": "Available", "available_copies": 2, "total_copies": 3}
-        ]
-        
-        # Filter by search query if provided
-        if search_query:
-            search_lower = search_query.lower()
-            sample_books = [
-                book for book in sample_books
-                if (search_lower in book["title"].lower() or 
-                    search_lower in book["author"].lower())
-            ]
-        
-        # Update books count
-        books_count = self.findChild(QLabel, "books-count")
-        if books_count:
-            books_count.setText(f"{len(sample_books)} book{'s' if len(sample_books) != 1 else ''} available")
-        
-        # Update available count
-        available_count = self.findChild(QLabel, "available-count")
-        if available_count:
-            available_books = sum(1 for book in sample_books if book["status"] == "Available")
-            available_count.setText(str(available_books))
-        
-        if not sample_books:
-            no_books_label = QLabel("No books found matching your search criteria.")
-            no_books_label.setAlignment(Qt.AlignCenter)
-            StyleManager.style_subtitle_label(no_books_label, size=16)
-            self.books_grid_layout.addWidget(no_books_label, 0, 0, 1, 3)
-            return
-        
-        # Add book cards to grid
-        for i, book_data in enumerate(sample_books):
-            book_card = BookCard(book_data, self.app)
-            book_card.checkout_button_clicked.connect(self.handle_checkout)
-            self.books_grid_layout.addWidget(book_card, i // 3, i % 3)
-
-    def load_reader_stats(self):
-        """Loads reader statistics (placeholder for frontend)"""
-        # Fines amount
-        fines_amount = self.findChild(QLabel, "fines-amount")
-        if fines_amount:
-            fines_amount.setText("$0.00")
+        try:
+            base_query = """
+                SELECT id, title, author, genre, publication_year, 
+                       available_copies, total_copies, image_path,
+                       CASE WHEN available_copies > 0 THEN 'Available' ELSE 'Checked Out' END as status
+                FROM books
+            """
+            
+            params = []
+            if search_query:
+                base_query += """ WHERE (title LIKE ? OR author LIKE ? OR genre LIKE ?) """
+                search_param = f"%{search_query}%"
+                params = [search_param, search_param, search_param]
+            
+            base_query += " ORDER BY title"
+            
+            books = db_manager.fetch_all(base_query, params)
+            
+            self.books_count_label.setText(f"{len(books)} book{'s' if len(books) != 1 else ''}")
+            
+            if not books:
+                no_books_label = QLabel("No books found matching your search criteria." if search_query else "No books available in the library.")
+                no_books_label.setAlignment(Qt.AlignCenter)
+                StyleManager.style_subtitle_label(no_books_label, size=16)
+                no_books_label.setStyleSheet("color: #666666; padding: 40px;")
+                self.books_grid_layout.addWidget(no_books_label, 0, 0, 1, 4)
+                return
+            
+            # Add book cards to grid (4 columns for better image display)
+            for i, book_data_tuple in enumerate(books):
+                book_data = {
+                    "id": book_data_tuple[0],
+                    "title": book_data_tuple[1],
+                    "author": book_data_tuple[2],
+                    "genre": book_data_tuple[3],
+                    "publication_year": book_data_tuple[4],
+                    "available_copies": book_data_tuple[5],
+                    "total_copies": book_data_tuple[6],
+                    "image_path": book_data_tuple[7],
+                    "status": book_data_tuple[8]
+                }
+                
+                book_card = BookCard(book_data, self.app)
+                book_card.checkout_button_clicked.connect(self.handle_checkout)
+                
+                row = i // 4
+                col = i % 4
+                self.books_grid_layout.addWidget(book_card, row, col)
+                
+        except Exception as e:
+            print(f"Error loading books data: {e}")
+            error_label = QLabel(f"Error loading books: {str(e)}")
+            error_label.setAlignment(Qt.AlignCenter)
+            error_label.setStyleSheet("color: #dc2626; padding: 40px;")
+            self.books_grid_layout.addWidget(error_label, 0, 0, 1, 4)
 
     def perform_search(self):
-        """Initiates a search for books based on the text in the search input."""
+        """Search for books based on input text"""
         search_text = self.search_input.text().strip()
         self.load_books_data(search_text)
 
     def clear_search(self):
-        """Clears the search input and reloads all books."""
+        """Clear search and reload all books"""
         self.search_input.clear()
         self.load_books_data()
 
     def handle_checkout(self, book_id):
-        """
-        Handles the checkout process (placeholder for frontend).
-        In the final version, this will connect to your SQL backend.
-        """
-        if not self.app.current_user:
-            QMessageBox.warning(self, "Checkout Error", "Please log in to check out books.")
+        """Handle book checkout with full database integration"""
+        if not self.app.current_user or not self.user_id:
+            QMessageBox.warning(self, "Login Required", "Please log in to check out books.")
             return
         
-        # PLACEHOLDER: Simulate checkout process
-        success = True  # Simulate successful checkout
-        
-        if success:
-            QMessageBox.information(
-                self, 
-                "Checkout Successful", 
-                "Book checked out successfully!\n\n"
-                "Please remember to return it by the due date.\n\n"
-                "(This is a demo - no actual checkout occurred)"
+        try:
+            # Check if book exists and is available
+            book_data = db_manager.fetch_one(
+                "SELECT title, available_copies, total_copies FROM books WHERE id = ?", 
+                (book_id,)
             )
-            # Refresh the data to show updated availability and loans
-            self.load_books_data()
-            self.load_user_loans()
-            self.load_reader_stats()
-        else:
-            QMessageBox.warning(
-                self, 
-                "Checkout Error", 
-                "This book is currently not available for checkout."
+            
+            if not book_data:
+                QMessageBox.warning(self, "Book Not Found", "The selected book was not found.")
+                return
+            
+            title, available_copies, total_copies = book_data
+            
+            if available_copies <= 0:
+                QMessageBox.warning(
+                    self, "Book Unavailable", 
+                    f'"{title}" is currently not available.\n\nAll {total_copies} copies are checked out.'
+                )
+                return
+            
+            # Check if user already has this book
+            existing_loan = db_manager.fetch_one(
+                "SELECT id FROM loans WHERE user_id = ? AND book_id = ? AND return_date IS NULL",
+                (self.user_id, book_id)
+            )
+            
+            if existing_loan:
+                QMessageBox.warning(
+                    self, "Already Borrowed", 
+                    f'You already have "{title}" checked out.'
+                )
+                return
+            
+            # Check user's loan limit (optional - you can set a limit like 5 books max)
+            current_loans = db_manager.fetch_one(
+                "SELECT COUNT(*) FROM loans WHERE user_id = ? AND return_date IS NULL", 
+                (self.user_id,)
+            )[0] or 0
+            
+            MAX_LOANS = 5  # Set your library's loan limit
+            if current_loans >= MAX_LOANS:
+                QMessageBox.warning(
+                    self, "Loan Limit Reached", 
+                    f"You have reached the maximum loan limit of {MAX_LOANS} books.\n\n"
+                    "Please return some books before checking out new ones."
+                )
+                return
+            
+            # Perform the checkout
+            loan_success = db_manager.execute_query(
+                "INSERT INTO loans (user_id, book_id, loan_date) VALUES (?, ?, DATE('now'))",
+                (self.user_id, book_id)
+            )
+            
+            book_success = db_manager.execute_query(
+                "UPDATE books SET available_copies = available_copies - 1 WHERE id = ?",
+                (book_id,)
+            )
+            
+            if loan_success and book_success:
+                QMessageBox.information(
+                    self, "Checkout Successful", 
+                    f'"{title}" has been checked out successfully!\n\n'
+                    "Due date: 14 days from today\n"
+                    "Please return it on time to avoid late fees.\n\n"
+                    f"You now have {current_loans + 1} book(s) checked out."
+                )
+                # Refresh all data
+                self.load_data()
+            else:
+                QMessageBox.critical(
+                    self, "Checkout Failed", 
+                    "There was an error processing your checkout. Please try again or contact a librarian."
+                )
+                
+        except Exception as e:
+            print(f"Error during checkout: {e}")
+            QMessageBox.critical(
+                self, "System Error", 
+                f"An unexpected error occurred during checkout:\n\n{str(e)}\n\n"
+                "Please contact a librarian for assistance."
             )
 
     def handle_logout(self):
-        """Handle logout action by returning to welcome screen"""
+        """Handle user logout"""
         self.app.current_user = None
         self.app.user_type = None
         self.user_id = None

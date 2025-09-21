@@ -18,19 +18,21 @@ class UserCard(QFrame):
         """
         super().__init__()
         self.user_data = user_data
+        # scope widget stylesheet to this frame only
+        self.setObjectName("UserCardFrame")
         self.setup_ui()
         self.setStyleSheet(f"""
-            UserCard {{
+            #UserCardFrame {{
                 background-color: white;
                 border: 1px solid #e2e8f0;
                 border-radius: 10px;
                 padding: 15px;
             }}
-            UserCard:hover {{
+            #UserCardFrame:hover {{
                 border: 2px solid {Config.PRIMARY_COLOR};
-                margin: -1px; /* Compensate for larger border */
+                margin: -1px;
             }}
-            QLabel {{
+            #UserCardFrame QLabel {{
                 color: {Config.DARK_COLOR};
             }}
         """)
