@@ -43,10 +43,11 @@ class DatabaseManager:
                     full_name TEXT NOT NULL,
                     email TEXT UNIQUE NOT NULL,
                     username TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL, -- In a real app, store hashed passwords!
-                    user_type TEXT NOT NULL DEFAULT 'reader' -- 'reader' or 'librarian'
+                    password TEXT NOT NULL,
+                    user_type TEXT NOT NULL DEFAULT 'reader'
                 )
             """)
+            
             # Books table: Stores book information
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS books (
@@ -60,6 +61,15 @@ class DatabaseManager:
                     available_copies INTEGER NOT NULL DEFAULT 1
                 )
             """)
+            
+            # Add a migration step to add the new column if it doesn't exist
+            # Check if the column exists before adding it
+            self.cursor.execute("PRAGMA table_info(books)")
+            columns = [column[1] for column in self.cursor.fetchall()]
+            if 'image_path' not in columns:
+                self.cursor.execute("ALTER TABLE books ADD COLUMN image_path TEXT")
+                print("Added 'image_path' column to 'books' table.")
+
             # Loans table: Tracks borrowed books
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS loans (
@@ -67,17 +77,18 @@ class DatabaseManager:
                     book_id INTEGER NOT NULL,
                     user_id INTEGER NOT NULL,
                     loan_date TEXT NOT NULL,
-                    return_date TEXT, -- Null until returned
+                    return_date TEXT,
                     FOREIGN KEY (book_id) REFERENCES books(id),
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 )
             """)
+
             self.conn.commit()
             print("Database tables checked/created successfully.")
         except sqlite3.Error as e:
             print(f"Error creating tables: {e}")
             self.conn.rollback()
-
+            
     def execute_query(self, query, params=()):
         """Executes a given SQL query with optional parameters."""
         if not self.conn:

@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit,
     QPushButton, QFrame, QMessageBox, QApplication
@@ -11,8 +11,10 @@ class LoginScreen(QWidget):
         super().__init__()
         self.app = app
         self.user_type = user_type
+        # Ensure high DPI scaling is enabled for this widget
+        self.setAttribute(Qt.WA_TranslucentBackground)
         self.setup_ui()
-        
+
     def setup_ui(self):
         # Main layout with background
         main_layout = QVBoxLayout(self)
@@ -49,27 +51,52 @@ class LoginScreen(QWidget):
         card_layout.setContentsMargins(40, 40, 40, 40)
         card_layout.setSpacing(25)
         
-        # Header section
+        # Header section with centered layout
         header_layout = QVBoxLayout()
         header_layout.setSpacing(10)
         header_layout.setAlignment(Qt.AlignCenter)
         
-        # App logo/icon
+        # App logo/icon with improved scaling and centering
+        icon_container = QWidget()
+        icon_layout = QVBoxLayout(icon_container)
+        icon_layout.setAlignment(Qt.AlignCenter)
+        icon_layout.setContentsMargins(0, 0, 0, 0)
+
         icon_label = QLabel()
         try:
             icon_pixmap = QPixmap("assets/lms.png")
             if not icon_pixmap.isNull():
-                icon_pixmap = icon_pixmap.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                icon_label.setPixmap(icon_pixmap)
+                # Get device pixel ratio for high DPI displays
+                dpr = self.devicePixelRatioF()
+                
+                # Calculate target size considering DPI
+                target_size = QSize(80, 80) * dpr
+                
+                # Scale with high-quality transformation
+                scaled_pixmap = icon_pixmap.scaled(
+                    target_size,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation
+                )
+                
+                # Set device pixel ratio for crisp rendering
+                scaled_pixmap.setDevicePixelRatio(dpr)
+                
+                icon_label.setPixmap(scaled_pixmap)
+                # REMOVE THE FIXED HEIGHT CONSTRAINT
+                icon_label.setFixedWidth(80)  # Keep width fixed but not height
+                
             else:
                 icon_label.setText("📚")
                 icon_label.setStyleSheet("font-size: 48px;")
-        except:
+                icon_label.setAlignment(Qt.AlignCenter)
+        except Exception:
             icon_label.setText("📚")
             icon_label.setStyleSheet("font-size: 48px;")
-        
-        icon_label.setAlignment(Qt.AlignCenter)
-        header_layout.addWidget(icon_label)
+            icon_label.setAlignment(Qt.AlignCenter)
+
+        icon_layout.addWidget(icon_label)
+        header_layout.addWidget(icon_container)
         
         # Title
         title_text = "Reader Login" if self.user_type == "reader" else "Librarian Login"
