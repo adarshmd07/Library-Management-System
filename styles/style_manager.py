@@ -558,14 +558,16 @@ class StyleManager:
         widget.setProperty("class", "dashboard-card")
 
     @staticmethod
-    def style_card_title(label):
+    def style_card_title(label, size=16, color="#6b7280"):
         """Applies card title styling."""
         label.setProperty("class", "card-title")
+        label.setStyleSheet(f"font-size: {size}px; color: {color};")
 
     @staticmethod
-    def style_card_value(label):
+    def style_card_value(label, size=32, color=Config.PRIMARY_COLOR):
         """Applies card value styling."""
         label.setProperty("class", "card-value")
+        label.setStyleSheet(f"font-size: {size}px; color: {color};")
 
     @staticmethod
     def style_stats_container(widget):

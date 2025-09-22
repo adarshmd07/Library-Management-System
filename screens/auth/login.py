@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QPushButton, QFrame, QMessageBox, QApplication
 )
 from PySide6.QtGui import QPixmap
+from models.user import User
 import sys
 
 class LoginScreen(QWidget):
@@ -11,7 +12,6 @@ class LoginScreen(QWidget):
         super().__init__()
         self.app = app
         self.user_type = user_type
-        # Ensure high DPI scaling is enabled for this widget
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setup_ui()
 
@@ -66,26 +66,16 @@ class LoginScreen(QWidget):
         try:
             icon_pixmap = QPixmap("assets/lms.png")
             if not icon_pixmap.isNull():
-                # Get device pixel ratio for high DPI displays
                 dpr = self.devicePixelRatioF()
-                
-                # Calculate target size considering DPI
                 target_size = QSize(80, 80) * dpr
-                
-                # Scale with high-quality transformation
                 scaled_pixmap = icon_pixmap.scaled(
                     target_size,
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
                 )
-                
-                # Set device pixel ratio for crisp rendering
                 scaled_pixmap.setDevicePixelRatio(dpr)
-                
                 icon_label.setPixmap(scaled_pixmap)
-                # REMOVE THE FIXED HEIGHT CONSTRAINT
-                icon_label.setFixedWidth(80)  # Keep width fixed but not height
-                
+                icon_label.setFixedWidth(80)
             else:
                 icon_label.setText("📚")
                 icon_label.setStyleSheet("font-size: 48px;")
@@ -286,30 +276,35 @@ class LoginScreen(QWidget):
         self.password_input.returnPressed.connect(self.handle_login)
 
     def show_error(self, message):
+        """Display error message to user."""
         self.error_label.setText(message)
         self.error_label.show()
 
     def hide_error(self):
+        """Hide error message."""
         self.error_label.hide()
 
     def handle_login(self):
+        """Handle login process using User model with demo fallback."""
         self.hide_error()
         
         username = self.username_input.text().strip()
         password = self.password_input.text()
 
+        # Basic validation
         if not username or not password:
             self.show_error("Please enter both username and password.")
             return
 
-        # PLACEHOLDER: Simulate successful login for frontend
         try:
+            # First, try demo login for easy testing
             if username == "demo" and password == "demo":
-                # Mock user data for demonstration
+                # Create mock user data for demo
                 mock_user_data = {
-                    "id": 1,
-                    "username": username,
+                    "id": 999,  # Special demo ID
+                    "username": "demo",
                     "full_name": "Demo User",
+                    "email": "demo@library.com",
                     "user_type": self.user_type
                 }
                 
@@ -323,17 +318,69 @@ class LoginScreen(QWidget):
                 
                 # Navigate to appropriate dashboard
                 if self.user_type == "reader":
+                    self.app.reader_dashboard.set_user_info("Demo User", 999)
                     self.app.switch_to_reader_dashboard()
                 else:
+                    self.app.librarian_dashboard.set_username("Demo Librarian")
                     self.app.switch_to_librarian_dashboard()
                 
-                QMessageBox.information(self, "Success", "Login successful! (This is a demo)")
-            else:
-                self.show_error("Invalid credentials. Use 'demo' for both username and password.")
+                QMessageBox.information(
+                    self, "Demo Login Successful", 
+                    f"Welcome to the demo, {mock_user_data['full_name']}!\n\n"
+                    "This is a demonstration mode with sample data."
+                )
+                return
+
+            # Try real authentication with User model
+            authenticated_user = User.authenticate(username, password)
+            
+            if authenticated_user and authenticated_user.user_type == self.user_type:
+                # Successful authentication
+                self.app.current_user = authenticated_user.to_dict()
+                self.app.user_type = self.user_type
                 
+                # Clear inputs
+                self.username_input.clear()
+                self.password_input.clear()
+                self.hide_error()
+                
+                # Navigate to appropriate dashboard
+                if self.user_type == "reader":
+                    # Set user info in reader dashboard
+                    self.app.reader_dashboard.set_user_info(
+                        authenticated_user.username, 
+                        authenticated_user.id
+                    )
+                    self.app.switch_to_reader_dashboard()
+                else:
+                    # Set user info in librarian dashboard
+                    self.app.librarian_dashboard.set_username(authenticated_user.username)
+                    self.app.switch_to_librarian_dashboard()
+                
+                QMessageBox.information(
+                    self, "Login Successful", 
+                    f"Welcome back, {authenticated_user.full_name}!"
+                )
+            else:
+                if authenticated_user and authenticated_user.user_type != self.user_type:
+                    self.show_error(f"This account is not registered as a {self.user_type}.")
+                else:
+                    self.show_error(
+                        "Invalid username or password.\n\n"
+                        "For testing: Use 'demo' for both username and password.\n"
+                        "Or use the sample accounts created during setup."
+                    )
+                    
         except Exception as e:
-            print(f"Login simulation error: {e}")
-            self.show_error("Login failed. Please try again.")
+            print(f"Login error: {e}")
+            # If there's a database error, still allow demo login
+            if username == "demo" and password == "demo":
+                self.show_error("Database unavailable. Demo mode only.")
+            else:
+                self.show_error(
+                    "Login failed due to system error.\n\n"
+                    "Try 'demo'/'demo' for demonstration mode."
+                )
 
 
 # Demo application class to test the login screen

@@ -9,39 +9,37 @@ from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap
 from styles.style_manager import StyleManager
 from widgets.navigation import LibrarianNavigationBar
-from database import db_manager
-import re
-import shutil
-import os
-from pathlib import Path
+from models.book import Book
+from models.user import User
+from models.transaction import Transaction
 from config import Config
+import os
 
 
 class BookFormDialog(QDialog):
-    def __init__(self, parent=None, book_data=None):
+    """Simplified book form dialog using Book model."""
+    def __init__(self, parent=None, book_model=None):
         super().__init__(parent)
-        self.setWindowTitle(
-            "Add New Book - Library Management System" if book_data is None else f"Edit Book - Library Management System"
-        )
+        self.book_model = book_model  # Book model instance
+        self.is_edit_mode = book_model is not None
+        
+        self.setWindowTitle("Edit Book" if self.is_edit_mode else "Add New Book")
         self.setModal(True)
-        self.book_data = book_data
         self.selected_image_path = None
         self.setup_ui()
         StyleManager.apply_styles(self)
-        self.resize(800, 400) # Adjusted size for the new layout
+        self.resize(800, 400)
 
     def setup_ui(self):
-        # Change 1: Use a main QVBoxLayout to stack content vertically
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(20)
 
-        # Change 2: Create a horizontal layout for the two columns
         horizontal_layout = QHBoxLayout()
         horizontal_layout.setSpacing(20)
         horizontal_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Change 3: Create a left form layout for the first half of the fields
+        # Left form layout
         left_form_layout = QFormLayout()
         left_form_layout.setSpacing(15)
 
@@ -52,14 +50,14 @@ class BookFormDialog(QDialog):
         self.image_preview.setFixedSize(120, 160)
         self.image_preview.setAlignment(Qt.AlignCenter)
         self.image_preview.setStyleSheet("""
-QLabel {
-    border: 2px dashed #cccccc;
-    border-radius: 8px;
-    background-color: #f8f9fa;
-    color: #666666;
-    font-size: 11px;
-}
-""")
+            QLabel {
+                border: 2px dashed #cccccc;
+                border-radius: 8px;
+                background-color: #f8f9fa;
+                color: #666666;
+                font-size: 11px;
+            }
+        """)
         self.image_preview.setText("No Image")
         image_section.addWidget(self.image_preview, alignment=Qt.AlignCenter)
 
@@ -94,7 +92,7 @@ QLabel {
         left_form_layout.addRow("Title*:", self.title_input)
         left_form_layout.addRow("Author*:", self.author_input)
 
-        # Change 4: Create a right form layout for the other half of the fields
+        # Right form layout
         right_form_layout = QFormLayout()
         right_form_layout.setSpacing(15)
 
@@ -116,24 +114,23 @@ QLabel {
         right_form_layout.addRow("Publication Year:", self.pub_year_input)
         right_form_layout.addRow("Total Copies:", self.total_copies_input)
 
-        # Change 5: Create a vertical bar frame
+        # Vertical separator
         vertical_bar = QFrame()
         vertical_bar.setFrameShape(QFrame.VLine)
         vertical_bar.setFrameShadow(QFrame.Sunken)
         vertical_bar.setStyleSheet("QFrame { background-color: #e2e8f0; }")
 
-        # Add the two form layouts and the vertical bar to the horizontal layout
         horizontal_layout.addLayout(left_form_layout)
         horizontal_layout.addWidget(vertical_bar)
         horizontal_layout.addLayout(right_form_layout)
 
-        # Add the new horizontal layout to the main layout
         main_layout.addLayout(horizontal_layout)
 
-        if self.book_data:
+        # Load existing data if in edit mode
+        if self.is_edit_mode:
             self.load_existing_data()
 
-        # Buttons - Same as before, add to the main layout
+        # Buttons
         button_layout = QHBoxLayout()
         save_btn = QPushButton("Save Book")
         StyleManager.style_primary_button(save_btn)
@@ -148,28 +145,27 @@ QLabel {
         button_layout.addWidget(cancel_btn)
         main_layout.addLayout(button_layout)
 
-    # The rest of the class methods (load_existing_data, select_image, etc.) remain the same
     def load_existing_data(self):
-        self.title_input.setText(self.book_data.get("title", ""))
-        self.author_input.setText(self.book_data.get("author", ""))
-        self.isbn_input.setText(self.book_data.get("isbn", ""))
-        self.genre_input.setText(self.book_data.get("genre", ""))
-        self.pub_year_input.setValue(
-            self.book_data.get("publication_year", QDate.currentDate().year())
-        )
-        self.total_copies_input.setValue(self.book_data.get("total_copies", 1))
+        """Load data from Book model."""
+        if not self.book_model:
+            return
+            
+        self.title_input.setText(self.book_model.title or "")
+        self.author_input.setText(self.book_model.author or "")
+        self.isbn_input.setText(self.book_model.isbn or "")
+        self.genre_input.setText(self.book_model.genre or "")
+        self.pub_year_input.setValue(self.book_model.publication_year or QDate.currentDate().year())
+        self.total_copies_input.setValue(self.book_model.total_copies)
 
-        existing_image = self.book_data.get("image_path", "")
-        if existing_image and os.path.exists(existing_image):
-            self.selected_image_path = existing_image
+        if self.book_model.image_path and os.path.exists(self.book_model.image_path):
+            self.selected_image_path = self.book_model.image_path
             self.update_image_preview()
 
     def select_image(self):
+        """Select book cover image."""
         file_dialog = QFileDialog()
         file_path, _ = file_dialog.getOpenFileName(
-            self,
-            "Select Book Cover Image",
-            "",
+            self, "Select Book Cover Image", "",
             "Image Files (*.png *.jpg *.jpeg *.gif *.bmp);;All Files (*)"
         )
 
@@ -178,38 +174,36 @@ QLabel {
             self.update_image_preview()
 
     def remove_image(self):
+        """Remove selected image."""
         self.selected_image_path = None
         self.image_preview.clear()
         self.image_preview.setText("No Image\nSelected")
         self.image_preview.setStyleSheet("""
-QLabel {
-    border: 2px dashed #cccccc;
-    border-radius: 8px;
-    background-color: #f8f9fa;
-    color: #666666;
-}
-""")
+            QLabel {
+                border: 2px dashed #cccccc;
+                border-radius: 8px;
+                background-color: #f8f9fa;
+                color: #666666;
+            }
+        """)
         self.remove_image_btn.setEnabled(False)
 
     def update_image_preview(self):
+        """Update image preview."""
         if self.selected_image_path and os.path.exists(self.selected_image_path):
             try:
                 pixmap = QPixmap(self.selected_image_path)
                 if not pixmap.isNull():
-                    scaled_pixmap = pixmap.scaled(
-                        140, 190,
-                        Qt.KeepAspectRatio,
-                        Qt.SmoothTransformation
-                    )
+                    scaled_pixmap = pixmap.scaled(140, 190, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                     self.image_preview.setPixmap(scaled_pixmap)
                     self.image_preview.setStyleSheet("""
-QLabel {
-    border: 2px solid #4CAF50;
-    border-radius: 8px;
-    background-color: white;
-    padding: 5px;
-}
-""")
+                        QLabel {
+                            border: 2px solid #4CAF50;
+                            border-radius: 8px;
+                            background-color: white;
+                            padding: 5px;
+                        }
+                    """)
                     self.remove_image_btn.setEnabled(True)
                     return
             except Exception as e:
@@ -218,70 +212,68 @@ QLabel {
             self.image_preview.clear()
             self.image_preview.setText("Invalid\nImage File")
             self.image_preview.setStyleSheet("""
-QLabel {
-    border: 2px solid #f44336;
-    border-radius: 8px;
-    background-color: #ffebee;
-    color: #d32f2f;
-}
-""")
+                QLabel {
+                    border: 2px solid #f44336;
+                    border-radius: 8px;
+                    background-color: #ffebee;
+                    color: #d32f2f;
+                }
+            """)
 
-    def save_book_image(self, book_id):
-        if not self.selected_image_path or not os.path.exists(self.selected_image_path):
-            return None
-
-        try:
-            base_dir = Path(__file__).parent.parent
-            images_dir = base_dir / "assets" / "book_covers"
-            images_dir.mkdir(parents=True, exist_ok=True)
-
-            file_extension = Path(self.selected_image_path).suffix
-            new_filename = f"book_{book_id}{file_extension}"
-            destination_path = images_dir / new_filename
-
-            shutil.copy2(self.selected_image_path, destination_path)
-
-            return str(destination_path)
-
-        except Exception as e:
-            print(f"Error saving book image: {e}")
-            QMessageBox.warning(
-                self, 
-                "Image Save Error", 
-                f"Could not save book image: {str(e)}\n\nThe book will be saved without an image."
-            )
-            return None
-
-    def get_book_data(self):
+    def get_book_model(self):
+        """Get Book model with form data."""
         title = self.title_input.text().strip()
         author = self.author_input.text().strip()
 
-        if not title:
-            QMessageBox.warning(self, "Validation Error", "Book title is required.")
+        if not title or not author:
+            QMessageBox.warning(self, "Validation Error", "Title and Author are required.")
             return None
 
-        if not author:
-            QMessageBox.warning(self, "Validation Error", "Book author is required.")
-            return None
+        # Create or update Book model
+        if self.is_edit_mode:
+            book = self.book_model
+        else:
+            book = Book()
 
-        return {
-            "title": title,
-            "author": author,
-            "isbn": self.isbn_input.text().strip(),
-            "genre": self.genre_input.text().strip(),
-            "publication_year": self.pub_year_input.value(),
-            "total_copies": self.total_copies_input.value(),
-            "selected_image_path": self.selected_image_path
-        }
+        book.title = title
+        book.author = author
+        book.isbn = self.isbn_input.text().strip() or None
+        book.genre = self.genre_input.text().strip()
+        book.publication_year = self.pub_year_input.value()
+        book.total_copies = self.total_copies_input.value()
+        
+        # Handle available copies for new books
+        if not self.is_edit_mode:
+            book.available_copies = book.total_copies
+        else:
+            # For edits, adjust available copies based on change in total
+            old_total = self.book_model.total_copies
+            new_total = book.total_copies
+            old_available = self.book_model.available_copies
+            book.available_copies = max(0, old_available + (new_total - old_total))
+
+        # Handle image
+        if self.selected_image_path and self.selected_image_path != book.image_path:
+            if book.id:  # Only save image if book has an ID
+                success, image_path = book.save_image(self.selected_image_path)
+                if success:
+                    book.image_path = image_path
+            else:
+                # For new books, we'll save the image after the book is saved
+                book._temp_image_path = self.selected_image_path
+
+        return book
+
 
 class UserFormDialog(QDialog):
-    def __init__(self, parent=None, user_data=None):
+    """Simplified user form dialog using User model."""
+    def __init__(self, parent=None, user_model=None):
         super().__init__(parent)
-        self.setWindowTitle(
-            "Add New User" if user_data is None else f"Edit User: {user_data.get('username','')}"
-        )
+        self.user_model = user_model
+        self.is_edit_mode = user_model is not None
+        
+        self.setWindowTitle("Edit User" if self.is_edit_mode else "Add New User")
         self.setModal(True)
-        self.user_data = user_data
         self.setup_ui()
         StyleManager.apply_styles(self)
         self.resize(500, 400)
@@ -311,14 +303,8 @@ class UserFormDialog(QDialog):
         layout.addRow("Password*:", self.password_input)
         layout.addRow("User Type:", self.user_type_combo)
 
-        if self.user_data:
-            self.full_name_input.setText(self.user_data.get("full_name", ""))
-            self.email_input.setText(self.user_data.get("email", ""))
-            self.username_input.setText(self.user_data.get("username", ""))
-            self.user_type_combo.setCurrentText(self.user_data.get("user_type", "reader"))
-            self.username_input.setReadOnly(True)
-            self.email_input.setReadOnly(True)
-            self.password_input.setPlaceholderText("Leave blank to keep current password")
+        if self.is_edit_mode:
+            self.load_existing_data()
 
         button_layout = QHBoxLayout()
         save_btn = QPushButton("Save User")
@@ -334,39 +320,59 @@ class UserFormDialog(QDialog):
         button_layout.addWidget(cancel_btn)
         layout.addRow(button_layout)
 
-    def get_user_data(self):
+    def load_existing_data(self):
+        """Load data from User model."""
+        if not self.user_model:
+            return
+            
+        self.full_name_input.setText(self.user_model.full_name or "")
+        self.email_input.setText(self.user_model.email or "")
+        self.username_input.setText(self.user_model.username or "")
+        self.user_type_combo.setCurrentText(self.user_model.user_type)
+        self.username_input.setReadOnly(True)
+        self.email_input.setReadOnly(True)
+        self.password_input.setPlaceholderText("Leave blank to keep current password")
+
+    def get_user_model(self):
+        """Get User model with form data."""
         full_name = self.full_name_input.text().strip()
         email = self.email_input.text().strip()
         username = self.username_input.text().strip()
         password = self.password_input.text()
         user_type = self.user_type_combo.currentText()
 
-        errors = []
-        if not full_name:
-            errors.append("Full Name is required.")
-        if not email:
-            errors.append("Email is required.")
-        if not username:
-            errors.append("Username is required.")
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            errors.append("Invalid email format.")
-        if not self.user_data:
-            if not password:
-                errors.append("Password is required for new users.")
-            elif len(password) < 8:
-                errors.append("Password must be at least 8 characters long.")
-
-        if errors:
-            QMessageBox.warning(self, "Validation Error", "\n".join(errors))
+        if not full_name or not email or not username:
+            QMessageBox.warning(self, "Validation Error", "Full Name, Email, and Username are required.")
             return None
 
-        data = {"full_name": full_name, "email": email, "username": username, "user_type": user_type}
-        if password:
-            data["password"] = password
-        return data
+        if not self.is_edit_mode and not password:
+            QMessageBox.warning(self, "Validation Error", "Password is required for new users.")
+            return None
+
+        # Create or update User model
+        if self.is_edit_mode:
+            user = self.user_model
+            user.full_name = full_name
+            user.user_type = user_type
+            if password:  # Only update password if provided
+                user.password = password
+        else:
+            user = User(
+                username=username,
+                full_name=full_name,
+                email=email,
+                password=password,
+                user_type=user_type
+            )
+
+        return user
 
 
 class LibrarianDashboard(QWidget):
+    """
+    Enhanced librarian dashboard using Book, User, and Transaction models.
+    Significantly reduced code duplication through model integration.
+    """
     def __init__(self, app):
         super().__init__()
         self.app = app
@@ -378,6 +384,7 @@ class LibrarianDashboard(QWidget):
         StyleManager.apply_styles(self)
 
     def set_username(self, username):
+        """Set the librarian's username."""
         self.username = username
         if hasattr(self, 'welcome_label'):
             self.welcome_label.setText(f"Welcome, {self.username}")
@@ -407,8 +414,7 @@ class LibrarianDashboard(QWidget):
         content_layout.addLayout(header_layout)
 
         self.tab_widget = QTabWidget()
-        self.tab_widget.setStyleSheet(
-            f"""
+        self.tab_widget.setStyleSheet(f"""
             QTabWidget::pane {{ 
                 border: 1px solid #e2e8f0; 
                 border-radius: 8px; 
@@ -435,8 +441,7 @@ class LibrarianDashboard(QWidget):
             QTabBar::tab:hover:!selected {{ 
                 background: #e8edf2; 
             }}
-            """
-        )
+        """)
         content_layout.addWidget(self.tab_widget)
 
         self.init_books_tab()
@@ -450,6 +455,7 @@ class LibrarianDashboard(QWidget):
         layout.addWidget(content_frame)
 
     def _create_tab_content(self, tab_name, add_button_text, add_button_callback, columns, table_ref):
+        """Helper method to create consistent tab layouts."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -479,6 +485,7 @@ class LibrarianDashboard(QWidget):
         return table
 
     def init_books_tab(self):
+        """Initialize books management tab."""
         self.books_table = self._create_tab_content(
             "Books", 
             "Add New Book", 
@@ -488,6 +495,7 @@ class LibrarianDashboard(QWidget):
         )
 
     def init_users_tab(self):
+        """Initialize users management tab."""
         self.users_table = self._create_tab_content(
             "Users", 
             "Add New User", 
@@ -497,6 +505,7 @@ class LibrarianDashboard(QWidget):
         )
 
     def init_loans_tab(self):
+        """Initialize loans management tab."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -522,18 +531,14 @@ class LibrarianDashboard(QWidget):
         self.tab_widget.addTab(tab, "Loans")
 
     def _create_action_cell(self, buttons):
+        """Create action button cell for tables."""
         container = QWidget()
         layout = QHBoxLayout(container)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
         layout.setAlignment(Qt.AlignCenter)
         
-        if len(buttons) == 1:
-            button_width = 85
-        elif len(buttons) == 2:
-            button_width = 58
-        else:
-            button_width = 40
+        button_width = 85 if len(buttons) == 1 else 58 if len(buttons) == 2 else 40
         
         for button in buttons:
             button.setFixedSize(button_width, 28)
@@ -587,16 +592,11 @@ class LibrarianDashboard(QWidget):
                 """)
             layout.addWidget(button)
         
-        if len(buttons) == 2:
-            container.setFixedWidth(130)
-        elif len(buttons) == 1:
-            container.setFixedWidth(95)
-        else:
-            container.setFixedWidth(140)
-        
+        container.setFixedWidth(95 if len(buttons) == 1 else 130 if len(buttons) == 2 else 140)
         return container
 
     def _wrap_table_in_frame(self, table):
+        """Wrap table in a styled frame."""
         frame = QFrame()
         frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout = QVBoxLayout(frame)
@@ -605,10 +605,10 @@ class LibrarianDashboard(QWidget):
         layout.addWidget(table)
         
         frame.setStyleSheet("QFrame { background: white; border: none; }")
-        
         return frame
 
     def _style_table_common(self, table):
+        """Apply common table styling."""
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QTableWidget.SelectRows)
         table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -652,31 +652,24 @@ class LibrarianDashboard(QWidget):
         """)
 
     def load_books_data(self):
+        """Load books data using Book model."""
         if not self.books_table:
             return
             
         try:
             self.books_table.setRowCount(0)
-            query = """
-                SELECT id, title, author, genre, publication_year, total_copies, available_copies, image_path
-                FROM books 
-                ORDER BY id DESC
-            """
-            books = db_manager.fetch_all(query)
-            
-            if not books:
-                return
+            books = Book.get_all(order_by="id")
             
             for row, book in enumerate(books):
                 self.books_table.insertRow(row)
                 
                 columns = [
-                    str(book[0]),  # id
-                    str(book[1]),  # title 
-                    str(book[2]),  # author
-                    str(book[3] or ""),  # genre
-                    str(book[4]),  # publication_year
-                    f"{book[6]}/{book[5]}"  # available/total copies
+                    str(book.id),
+                    book.title,
+                    book.author,
+                    book.genre or "",
+                    str(book.publication_year),
+                    f"{book.available_copies}/{book.total_copies}"
                 ]
                 
                 for col, value in enumerate(columns):
@@ -687,9 +680,8 @@ class LibrarianDashboard(QWidget):
                 edit_btn = QPushButton("Edit")
                 delete_btn = QPushButton("Delete")
                 
-                book_id = book[0]
-                edit_btn.clicked.connect(lambda checked, bid=book_id: self.edit_book(bid))
-                delete_btn.clicked.connect(lambda checked, bid=book_id: self.delete_book(bid))
+                edit_btn.clicked.connect(lambda checked, b=book: self.edit_book(b))
+                delete_btn.clicked.connect(lambda checked, b=book: self.delete_book(b))
                 
                 action_cell = self._create_action_cell([edit_btn, delete_btn])
                 self.books_table.setCellWidget(row, 6, action_cell)
@@ -699,30 +691,35 @@ class LibrarianDashboard(QWidget):
             QMessageBox.warning(self, "Error", f"Failed to load books: {str(e)}")
 
     def load_users_data(self):
+        """Load users data using User model."""
         if not self.users_table:
             return
             
         try:
             self.users_table.setRowCount(0)
-            users = db_manager.fetch_all("SELECT id, username, full_name, email, user_type FROM users ORDER BY id DESC")
-            if not users:
-                return
-                
+            users = User.get_all()
+            
             for row_idx, user in enumerate(users):
-                user_id, username, full_name, email, user_type = user
                 self.users_table.insertRow(row_idx)
                 
-                self.users_table.setItem(row_idx, 0, QTableWidgetItem(str(user_id)))
-                self.users_table.setItem(row_idx, 1, QTableWidgetItem(full_name or ""))
-                self.users_table.setItem(row_idx, 2, QTableWidgetItem(email or ""))
-                self.users_table.setItem(row_idx, 3, QTableWidgetItem(username or ""))
-                self.users_table.setItem(row_idx, 4, QTableWidgetItem(user_type or ""))
+                columns = [
+                    str(user.id),
+                    user.full_name,
+                    user.email,
+                    user.username,
+                    user.user_type.capitalize()
+                ]
+                
+                for col, value in enumerate(columns):
+                    item = QTableWidgetItem(value)
+                    item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                    self.users_table.setItem(row_idx, col, item)
 
                 edit_btn = QPushButton("Edit")
                 delete_btn = QPushButton("Delete")
 
-                edit_btn.clicked.connect(lambda _, uid=user_id: self.edit_user(uid))
-                delete_btn.clicked.connect(lambda _, uid=user_id: self.delete_user(uid))
+                edit_btn.clicked.connect(lambda _, u=user: self.edit_user(u))
+                delete_btn.clicked.connect(lambda _, u=user: self.delete_user(u))
 
                 cell = self._create_action_cell([edit_btn, delete_btn])
                 self.users_table.setCellWidget(row_idx, 5, cell)
@@ -730,57 +727,54 @@ class LibrarianDashboard(QWidget):
             print(f"Error loading users data: {e}")
 
     def load_loans_data(self):
+        """Load loans data using Transaction model."""
         if not self.loans_table:
             return
             
         try:
             self.loans_table.setRowCount(0)
-            query = """
-                SELECT l.id, b.title, u.username, l.loan_date, 
-                       DATE(l.loan_date, '+14 days') as due_date, l.return_date,
-                       CASE 
-                           WHEN l.return_date IS NOT NULL THEN 'Returned'
-                           WHEN julianday('now') > julianday(DATE(l.loan_date, '+14 days')) THEN 'Overdue'
-                           ELSE 'Active'
-                       END as status
-                FROM loans l
-                JOIN books b ON l.book_id = b.id
-                JOIN users u ON l.user_id = u.id
-                ORDER BY l.loan_date DESC
-            """
-            loans = db_manager.fetch_all(query)
-            if not loans:
-                return
-                
+            loans = Transaction.get_all_loans()
+            
             for row_idx, loan in enumerate(loans):
-                loan_id, book_title, username, loan_date, due_date, return_date, status = loan
                 self.loans_table.insertRow(row_idx)
                 
-                self.loans_table.setItem(row_idx, 0, QTableWidgetItem(str(loan_id)))
-                self.loans_table.setItem(row_idx, 1, QTableWidgetItem(book_title))
-                self.loans_table.setItem(row_idx, 2, QTableWidgetItem(username))
-                self.loans_table.setItem(row_idx, 3, QTableWidgetItem(str(loan_date) if loan_date else "N/A"))
-                self.loans_table.setItem(row_idx, 4, QTableWidgetItem(str(due_date) if due_date else "N/A"))
+                book = loan.get_book()
+                user = loan.get_user()
                 
-                # Status with color coding
-                status_item = QTableWidgetItem(status)
-                if status == "Overdue":
-                    status_item.setStyleSheet("color: #dc2626; font-weight: bold;")
-                elif status == "Returned":
-                    status_item.setStyleSheet("color: #16a34a; font-weight: bold;")
-                else:
-                    status_item.setStyleSheet("color: #2563eb; font-weight: bold;")
-                self.loans_table.setItem(row_idx, 5, status_item)
+                columns = [
+                    str(loan.id),
+                    book.title if book else "Unknown Book",
+                    user.username if user else "Unknown User",
+                    loan.loan_date,
+                    loan.due_date,
+                    loan.update_status().capitalize()
+                ]
+                
+                for col, value in enumerate(columns):
+                    item = QTableWidgetItem(value)
+                    item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                    
+                    # Set text color for status column using QTableWidgetItem methods
+                    if col == 5:  # Status column
+                        from PySide6.QtGui import QColor
+                        if loan.status == "overdue":
+                            item.setForeground(QColor("#dc2626"))
+                        elif loan.status == "returned":
+                            item.setForeground(QColor("#16a34a"))
+                        else:
+                            item.setForeground(QColor("#2563eb"))
+                    
+                    self.loans_table.setItem(row_idx, col, item)
 
                 # Create action buttons based on loan status
                 buttons = []
-                if return_date is None:
+                if not loan.return_date:
                     ret_btn = QPushButton("Return")
-                    ret_btn.clicked.connect(lambda _, lid=loan_id: self.mark_loan_returned(lid))
+                    ret_btn.clicked.connect(lambda checked, l=loan: self.mark_loan_returned(l))
                     buttons.append(ret_btn)
 
                 del_btn = QPushButton("Delete")
-                del_btn.clicked.connect(lambda _, lid=loan_id: self.delete_loan(lid))
+                del_btn.clicked.connect(lambda checked, l=loan: self.delete_loan(l))
                 buttons.append(del_btn)
 
                 cell = self._create_action_cell(buttons)
@@ -789,338 +783,162 @@ class LibrarianDashboard(QWidget):
             print(f"Error loading loans data: {e}")
 
     def add_book(self):
+        """Add new book using Book model."""
         dialog = BookFormDialog(self)
         if dialog.exec() == QDialog.Accepted:
-            book_data = dialog.get_book_data()
-            if book_data:
+            book = dialog.get_book_model()
+            if book:
                 try:
-                    isbn = book_data.get("isbn", "").strip()
-                    if isbn:
-                        existing = db_manager.fetch_one("SELECT id FROM books WHERE isbn = ?", (isbn,))
-                        if existing:
-                            QMessageBox.warning(self, "Error", "A book with this ISBN already exists.")
-                            return
-
-                    query = """
-                        INSERT INTO books (title, author, isbn, genre, publication_year, total_copies, available_copies, image_path)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """
-                    success = db_manager.execute_query(
-                        query,
-                        (
-                            book_data["title"],
-                            book_data["author"],
-                            isbn if isbn else None,
-                            book_data["genre"],
-                            book_data["publication_year"],
-                            book_data["total_copies"],
-                            book_data["total_copies"],
-                            None
-                        ),
-                    )
-                    
+                    success, result = book.save()
                     if success:
-                        book_id = db_manager.fetch_one("SELECT last_insert_rowid()")[0]
-                        
-                        image_path = None
-                        if book_data.get("selected_image_path"):
-                            image_path = dialog.save_book_image(book_id)
-                            
-                            if image_path:
-                                db_manager.execute_query(
-                                    "UPDATE books SET image_path = ? WHERE id = ?",
-                                    (image_path, book_id)
-                                )
+                        # Handle image saving for new books
+                        if hasattr(book, '_temp_image_path'):
+                            book.save_image(book._temp_image_path)
                         
                         QMessageBox.information(self, "Success", "Book added successfully!")
                         self.load_books_data()
                     else:
-                        QMessageBox.critical(self, "Error", "Failed to add book.")
-                        
+                        QMessageBox.critical(self, "Error", result)
                 except Exception as e:
                     QMessageBox.critical(self, "Error", f"Failed to add book: {str(e)}")
 
-    def edit_book(self, book_id):
-        try:
-            book_data = db_manager.fetch_one(
-                "SELECT id, title, author, isbn, genre, publication_year, total_copies, available_copies, image_path FROM books WHERE id = ?",
-                (book_id,),
-            )
-            if not book_data:
-                QMessageBox.warning(self, "Error", "Book not found.")
-                return
-            
-            current_book = {
-                "id": book_data[0],
-                "title": book_data[1],
-                "author": book_data[2],
-                "isbn": book_data[3] or "",
-                "genre": book_data[4] or "",
-                "publication_year": book_data[5],
-                "total_copies": book_data[6],
-                "available_copies": book_data[7],
-                "image_path": book_data[8]
-            }
-            
-            dialog = BookFormDialog(self, current_book)
-            if dialog.exec() == QDialog.Accepted:
-                updated_data = dialog.get_book_data()
-                if updated_data:
-                    image_path = current_book.get("image_path")
-                    
-                    if updated_data.get("selected_image_path"):
-                        new_image_path = dialog.save_book_image(book_id)
-                        if new_image_path:
-                            if image_path and os.path.exists(image_path) and image_path != new_image_path:
-                                try:
-                                    os.remove(image_path)
-                                except Exception as e:
-                                    print(f"Could not delete old image: {e}")
-                            image_path = new_image_path
-                    
-                    # Calculate new available_copies based on change in total_copies
-                    old_total = current_book["total_copies"]
-                    new_total = updated_data["total_copies"]
-                    old_available = current_book["available_copies"]
-                    new_available = max(0, old_available + (new_total - old_total))
-                    
-                    query = """
-                        UPDATE books SET title = ?, author = ?, isbn = ?, genre = ?,
-                        publication_year = ?, total_copies = ?, available_copies = ?, image_path = ? 
-                        WHERE id = ?
-                    """
-                    success = db_manager.execute_query(
-                        query,
-                        (
-                            updated_data["title"],
-                            updated_data["author"],
-                            updated_data["isbn"] or None,
-                            updated_data["genre"],
-                            updated_data["publication_year"],
-                            updated_data["total_copies"],
-                            new_available,
-                            image_path,
-                            book_id,
-                        ),
-                    )
+    def edit_book(self, book):
+        """Edit existing book using Book model."""
+        dialog = BookFormDialog(self, book)
+        if dialog.exec() == QDialog.Accepted:
+            updated_book = dialog.get_book_model()
+            if updated_book:
+                try:
+                    success, result = updated_book.save()
                     if success:
                         QMessageBox.information(self, "Success", "Book updated successfully!")
                         self.load_books_data()
                     else:
-                        QMessageBox.critical(self, "Error", "Failed to update book.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to update book: {str(e)}")
+                        QMessageBox.critical(self, "Error", result)
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to update book: {str(e)}")
 
-    def delete_book(self, book_id):
+    def delete_book(self, book):
+        """Delete book using Book model."""
         reply = QMessageBox.question(
-            self, "Confirm Delete", "Are you sure you want to delete this book?\n\nThis action cannot be undone.", 
+            self, "Confirm Delete", 
+            f'Are you sure you want to delete "{book.title}"?\n\nThis action cannot be undone.', 
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
         if reply == QMessageBox.Yes:
             try:
-                loan_count = db_manager.fetch_one(
-                    "SELECT COUNT(*) FROM loans WHERE book_id = ? AND return_date IS NULL", (book_id,)
-                )[0]
-                if loan_count > 0:
-                    QMessageBox.warning(self, "Cannot Delete", f"Cannot delete this book because it has {loan_count} active loan(s).")
-                    return
-                
-                book_data = db_manager.fetch_one("SELECT title, image_path FROM books WHERE id = ?", (book_id,))
-                if not book_data:
-                    QMessageBox.warning(self, "Error", "Book not found.")
-                    return
-                
-                title, image_path = book_data
-                
-                success = db_manager.execute_query("DELETE FROM books WHERE id = ?", (book_id,))
+                success, message = book.delete()
                 if success:
-                    if image_path and os.path.exists(image_path):
-                        try:
-                            os.remove(image_path)
-                        except Exception as e:
-                            print(f"Could not delete book image: {e}")
-                    
-                    QMessageBox.information(self, "Success", f'Book "{title}" deleted successfully!')
+                    QMessageBox.information(self, "Success", message)
                     self.load_books_data()
                     self.load_loans_data()
                 else:
-                    QMessageBox.critical(self, "Error", "Failed to delete book.")
+                    QMessageBox.warning(self, "Cannot Delete", message)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to delete book: {str(e)}")
 
     def add_user(self):
+        """Add new user using User model."""
         dialog = UserFormDialog(self)
         if dialog.exec() == QDialog.Accepted:
-            user_data = dialog.get_user_data()
-            if user_data:
+            user = dialog.get_user_model()
+            if user:
                 try:
-                    existing_user = db_manager.fetch_one(
-                        "SELECT id FROM users WHERE username = ? OR email = ?", 
-                        (user_data["username"], user_data["email"])
-                    )
-                    if existing_user:
-                        QMessageBox.warning(self, "Error", "Username or Email already exists.")
-                        return
-                    
-                    query = """
-                        INSERT INTO users (full_name, email, username, password, user_type)
-                        VALUES (?, ?, ?, ?, ?)
-                    """
-                    success = db_manager.execute_query(
-                        query,
-                        (user_data["full_name"], user_data["email"], user_data["username"], 
-                         user_data["password"], user_data["user_type"]),
-                    )
+                    success, result = user.save()
                     if success:
                         QMessageBox.information(self, "Success", "User added successfully!")
                         self.load_users_data()
                     else:
-                        QMessageBox.critical(self, "Error", "Failed to add user.")
+                        QMessageBox.critical(self, "Error", result)
                 except Exception as e:
                     QMessageBox.critical(self, "Error", f"Failed to add user: {str(e)}")
 
-    def edit_user(self, user_id):
-        try:
-            user_data = db_manager.fetch_one(
-                "SELECT id, full_name, email, username, user_type FROM users WHERE id = ?", (user_id,)
-            )
-            if not user_data:
-                QMessageBox.warning(self, "Error", "User not found.")
-                return
-            
-            current_user = {
-                "id": user_data[0], 
-                "full_name": user_data[1], 
-                "email": user_data[2], 
-                "username": user_data[3], 
-                "user_type": user_data[4]
-            }
-            
-            dialog = UserFormDialog(self, current_user)
-            if dialog.exec() == QDialog.Accepted:
-                updated_data = dialog.get_user_data()
-                if updated_data:
-                    if "password" in updated_data and updated_data["password"]:
-                        query = """
-                            UPDATE users SET full_name = ?, user_type = ?, password = ?
-                            WHERE id = ?
-                        """
-                        params = [updated_data["full_name"], updated_data["user_type"], 
-                                 updated_data["password"], user_id]
-                    else:
-                        query = """
-                            UPDATE users SET full_name = ?, user_type = ?
-                            WHERE id = ?
-                        """
-                        params = [updated_data["full_name"], updated_data["user_type"], user_id]
-                    
-                    success = db_manager.execute_query(query, tuple(params))
+    def edit_user(self, user):
+        """Edit existing user using User model."""
+        dialog = UserFormDialog(self, user)
+        if dialog.exec() == QDialog.Accepted:
+            updated_user = dialog.get_user_model()
+            if updated_user:
+                try:
+                    success, result = updated_user.save()
                     if success:
                         QMessageBox.information(self, "Success", "User updated successfully!")
                         self.load_users_data()
                     else:
-                        QMessageBox.critical(self, "Error", "Failed to update user.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to update user: {str(e)}")
+                        QMessageBox.critical(self, "Error", result)
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to update user: {str(e)}")
 
-    def delete_user(self, user_id):
-        try:
-            user_data = db_manager.fetch_one("SELECT username FROM users WHERE id = ?", (user_id,))
-            if not user_data:
-                QMessageBox.warning(self, "Error", "User not found.")
-                return
-            
-            username = user_data[0]
-            
-            reply = QMessageBox.question(
-                self, "Confirm Delete", 
-                f'Are you sure you want to delete user "{username}"?\n\nThis action cannot be undone.', 
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-            )
-            if reply == QMessageBox.Yes:
-                loan_count = db_manager.fetch_one(
-                    "SELECT COUNT(*) FROM loans WHERE user_id = ? AND return_date IS NULL", (user_id,)
-                )[0]
-                if loan_count > 0:
-                    QMessageBox.warning(
-                        self, "Cannot Delete", 
-                        f'Cannot delete user "{username}" because they have {loan_count} active loan(s).'
-                    )
-                    return
-                
-                success = db_manager.execute_query("DELETE FROM users WHERE id = ?", (user_id,))
+    def delete_user(self, user):
+        """Delete user using User model."""
+        reply = QMessageBox.question(
+            self, "Confirm Delete", 
+            f'Are you sure you want to delete user "{user.username}"?\n\nThis action cannot be undone.', 
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            try:
+                success, message = user.delete()
                 if success:
-                    QMessageBox.information(self, "Success", f'User "{username}" deleted successfully!')
+                    QMessageBox.information(self, "Success", message)
                     self.load_users_data()
                     self.load_loans_data()
                 else:
-                    QMessageBox.critical(self, "Error", "Failed to delete user.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to delete user: {str(e)}")
+                    QMessageBox.warning(self, "Cannot Delete", message)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to delete user: {str(e)}")
 
-    def mark_loan_returned(self, loan_id=None):
+    def mark_loan_returned(self, loan=None):
+        """Mark loan as returned using Transaction model."""
         try:
-            if loan_id is None:
+            if loan is None:
                 selected_rows = self.loans_table.selectionModel().selectedRows()
                 if not selected_rows:
                     QMessageBox.warning(self, "No Selection", "Please select a loan to mark as returned.")
                     return
+                # Get loan ID from selected row and find the loan
                 loan_id = int(self.loans_table.item(selected_rows[0].row(), 0).text())
+                loan = Transaction.find_by_id(loan_id)
             
-            current_loan = db_manager.fetch_one("SELECT return_date, book_id FROM loans WHERE id = ?", (loan_id,))
-            if not current_loan:
+            if not loan:
                 QMessageBox.warning(self, "Error", "Loan not found.")
                 return
                 
-            if current_loan[0] is not None:
+            if loan.return_date:
                 QMessageBox.information(self, "Already Returned", "This loan has already been marked as returned.")
                 return
             
-            book_id = current_loan[1]
-            book_title = db_manager.fetch_one("SELECT title FROM books WHERE id = ?", (book_id,))[0]
-            
+            book = loan.get_book()
             reply = QMessageBox.question(
                 self, "Confirm Return", 
-                f'Mark "{book_title}" as returned?', 
+                f'Mark "{book.title if book else "this book"}" as returned?', 
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No
             )
             if reply == QMessageBox.Yes:
-                success = db_manager.execute_query(
-                    "UPDATE loans SET return_date = DATE('now') WHERE id = ?", (loan_id,)
-                )
+                success, message = loan.return_book()
                 if success:
-                    db_manager.execute_query(
-                        "UPDATE books SET available_copies = available_copies + 1 WHERE id = ?", (book_id,)
-                    )
-                    QMessageBox.information(self, "Success", "Book marked as returned successfully!")
+                    QMessageBox.information(self, "Success", message)
                     self.load_loans_data()
                     self.load_books_data()
                 else:
-                    QMessageBox.critical(self, "Error", "Failed to mark book as returned.")
+                    QMessageBox.critical(self, "Error", message)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
 
-    def delete_loan(self, loan_id):
+    def delete_loan(self, loan):
+        """Delete loan using Transaction model."""
         try:
-            loan_data = db_manager.fetch_one(
-                "SELECT l.return_date, b.title, u.username FROM loans l "
-                "JOIN books b ON l.book_id = b.id "
-                "JOIN users u ON l.user_id = u.id "
-                "WHERE l.id = ?", (loan_id,)
-            )
-            if not loan_data:
-                QMessageBox.critical(self, "Error", "Loan record not found.")
-                return
-            
-            return_date, book_title, username = loan_data
+            book = loan.get_book()
+            user = loan.get_user()
             
             reply = QMessageBox.question(
                 self, "Confirm Delete", 
-                f'Delete loan record for "{book_title}" borrowed by {username}?\n\nThis action cannot be undone.', 
+                f'Delete loan record for "{book.title if book else "Unknown Book"}" '
+                f'borrowed by {user.username if user else "Unknown User"}?\n\nThis action cannot be undone.', 
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No
             )
             if reply == QMessageBox.Yes:
-                if return_date is None:
+                if not loan.return_date:
                     warning_reply = QMessageBox.warning(
                         self, "Active Loan Warning", 
                         "This loan is still active (not returned). Deleting it will not update book availability.\n\nProceed anyway?", 
@@ -1129,12 +947,12 @@ class LibrarianDashboard(QWidget):
                     if warning_reply == QMessageBox.No:
                         return
                 
-                success = db_manager.execute_query("DELETE FROM loans WHERE id = ?", (loan_id,))
+                success, message = loan.delete()
                 if success:
-                    QMessageBox.information(self, "Success", "Loan record deleted successfully!")
+                    QMessageBox.information(self, "Success", message)
                     self.load_loans_data()
                 else:
-                    QMessageBox.critical(self, "Error", "Failed to delete loan record.")
+                    QMessageBox.critical(self, "Error", message)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
 
