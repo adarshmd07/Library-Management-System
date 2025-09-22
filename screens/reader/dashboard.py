@@ -8,24 +8,33 @@ from widgets.book_card import BookCard
 from widgets.loan_card import LoanCard
 from styles.style_manager import StyleManager
 from config import Config
-from database import db_manager
+from models.book import Book
+from models.user import User
+from models.transaction import Transaction
 
 class ReaderDashboard(QWidget):
     """
-    Modern dashboard for readers with book image support and full database integration.
+    Modern dashboard for readers with full model integration.
+    Uses Book, User, and Transaction models for all operations.
     """
     def __init__(self, app):
         super().__init__()
         self.app = app
         self.username = "Guest"
         self.user_id = None
+        self.user_model = None  # Store User model instance
         self.setup_ui()
         StyleManager.apply_styles(self)
     
     def set_user_info(self, username, user_id=None):
-        """Set both username and user ID for the current user"""
+        """Set user information and load user model."""
         self.username = username
         self.user_id = user_id
+        
+        # Load user model for additional operations
+        if user_id:
+            self.user_model = User.find_by_id(user_id)
+        
         self.welcome_label.setText(f"Welcome back, {username}!")
         self.load_data()
     
@@ -255,37 +264,30 @@ class ReaderDashboard(QWidget):
         self.load_data()
 
     def load_data(self):
-        """Load all dashboard data"""
+        """Load all dashboard data using models."""
         self.load_books_data()
         self.load_user_loans()
         self.load_reader_stats()
     
     def load_reader_stats(self):
-        """Load reader statistics from database"""
+        """Load reader statistics using Book and Transaction models."""
         try:
-            # Total available books
-            available_count = db_manager.fetch_one("SELECT SUM(available_copies) FROM books")[0] or 0
-            self.available_count_label.setText(str(available_count))
+            # Total available books using Book model
+            all_books = Book.get_all()
+            total_available = sum(book.available_copies for book in all_books)
+            self.available_count_label.setText(str(total_available))
             
             if not self.user_id:
                 self.borrowed_count_label.setText("0")
                 self.overdue_count_label.setText("0")
                 return
             
-            # User's borrowed books
-            borrowed_count = db_manager.fetch_one(
-                "SELECT COUNT(*) FROM loans WHERE user_id = ? AND return_date IS NULL", 
-                (self.user_id,)
-            )[0] or 0
-            self.borrowed_count_label.setText(str(borrowed_count))
+            # User's borrowed books using Transaction model
+            active_loans = Transaction.get_user_loans(self.user_id, active_only=True)
+            self.borrowed_count_label.setText(str(len(active_loans)))
             
             # User's overdue books
-            overdue_count = db_manager.fetch_one(
-                """SELECT COUNT(*) FROM loans 
-                   WHERE user_id = ? AND return_date IS NULL 
-                   AND julianday('now') > julianday(DATE(loan_date, '+14 days'))""", 
-                (self.user_id,)
-            )[0] or 0
+            overdue_count = sum(1 for loan in active_loans if loan.is_overdue())
             self.overdue_count_label.setText(str(overdue_count))
             
         except Exception as e:
@@ -295,29 +297,20 @@ class ReaderDashboard(QWidget):
             self.overdue_count_label.setText("0")
     
     def load_user_loans(self):
-        """Load the current user's loan information"""
+        """Load the current user's loan information using Transaction model."""
         if not self.user_id:
             self.clear_loans_display()
             self.loans_count_label.setText("0 loans")
             return
         
         try:
-            query = """
-                SELECT l.id, b.title, b.author, b.image_path, l.loan_date, 
-                       DATE(l.loan_date, '+14 days') as due_date,
-                       julianday('now') - julianday(DATE(l.loan_date, '+14 days')) as days_overdue
-                FROM loans l
-                JOIN books b ON l.book_id = b.id
-                WHERE l.user_id = ? AND l.return_date IS NULL
-                ORDER BY l.loan_date DESC
-            """
-            loans = db_manager.fetch_all(query, (self.user_id,))
-            
-            self.loans_count_label.setText(f"{len(loans)} loan{'s' if len(loans) != 1 else ''}")
+            # Get user's active loans using Transaction model
+            active_loans = Transaction.get_user_loans(self.user_id, active_only=True)
+            self.loans_count_label.setText(f"{len(active_loans)} loan{'s' if len(active_loans) != 1 else ''}")
             
             self.clear_loans_display()
             
-            if not loans:
+            if not active_loans:
                 no_loans_label = QLabel("You don't have any active loans.")
                 no_loans_label.setAlignment(Qt.AlignCenter)
                 StyleManager.style_subtitle_label(no_loans_label, size=16)
@@ -325,26 +318,24 @@ class ReaderDashboard(QWidget):
                 self.loans_layout.addWidget(no_loans_label)
                 return
             
-            for loan in loans:
-                loan_id, book_title, author, image_path, loan_date, due_date, days_overdue = loan
+            for loan in active_loans:
+                # Get book information
+                book = loan.get_book()
+                if not book:
+                    continue
                 
-                if days_overdue > 0:
-                    status = "Overdue"
-                    days_info = int(days_overdue)
-                else:
-                    status = "Active"
-                    days_info = int(-days_overdue)
-                
+                # Prepare loan data for LoanCard
                 loan_data = {
-                    "id": loan_id,
-                    "book_title": book_title,
-                    "author": author,
-                    "image_path": image_path,
-                    "loan_date": loan_date,
-                    "due_date": due_date,
-                    "status": status,
-                    "days_remaining": days_info if status == "Active" else None,
-                    "days_overdue": days_info if status == "Overdue" else None
+                    "id": loan.id,
+                    "book_title": book.title,
+                    "author": book.author,
+                    "image_path": book.image_path,
+                    "loan_date": loan.loan_date,
+                    "due_date": loan.due_date,
+                    "status": "Overdue" if loan.is_overdue() else "Active",
+                    "days_remaining": loan.days_remaining() if not loan.is_overdue() else None,
+                    "days_overdue": loan.days_overdue() if loan.is_overdue() else None,
+                    "loan_period_days": 14  # Default loan period
                 }
                 
                 loan_card = LoanCard(loan_data, self.app)
@@ -356,7 +347,7 @@ class ReaderDashboard(QWidget):
             self.loans_count_label.setText("0 loans")
     
     def clear_loans_display(self):
-        """Clear all loan cards from the loans layout"""
+        """Clear all loan cards from the loans layout."""
         while self.loans_layout.count():
             item = self.loans_layout.takeAt(0)
             widget = item.widget()
@@ -364,7 +355,7 @@ class ReaderDashboard(QWidget):
                 widget.deleteLater()
     
     def clear_book_grid(self):
-        """Clear all book cards from the grid layout"""
+        """Clear all book cards from the grid layout."""
         while self.books_grid_layout.count():
             item = self.books_grid_layout.takeAt(0)
             widget = item.widget()
@@ -372,26 +363,15 @@ class ReaderDashboard(QWidget):
                 widget.deleteLater()
 
     def load_books_data(self, search_query=""):
-        """Load book data from database with optional search"""
+        """Load book data using Book model with optional search."""
         self.clear_book_grid()
         
         try:
-            base_query = """
-                SELECT id, title, author, genre, publication_year, 
-                       available_copies, total_copies, image_path,
-                       CASE WHEN available_copies > 0 THEN 'Available' ELSE 'Checked Out' END as status
-                FROM books
-            """
-            
-            params = []
+            # Use Book model's search method
             if search_query:
-                base_query += """ WHERE (title LIKE ? OR author LIKE ? OR genre LIKE ?) """
-                search_param = f"%{search_query}%"
-                params = [search_param, search_param, search_param]
-            
-            base_query += " ORDER BY title"
-            
-            books = db_manager.fetch_all(base_query, params)
+                books = Book.search(query=search_query, available_only=False)
+            else:
+                books = Book.get_all()
             
             self.books_count_label.setText(f"{len(books)} book{'s' if len(books) != 1 else ''}")
             
@@ -403,19 +383,9 @@ class ReaderDashboard(QWidget):
                 self.books_grid_layout.addWidget(no_books_label, 0, 0, 1, 4)
                 return
             
-            # Add book cards to grid (4 columns for better image display)
-            for i, book_data_tuple in enumerate(books):
-                book_data = {
-                    "id": book_data_tuple[0],
-                    "title": book_data_tuple[1],
-                    "author": book_data_tuple[2],
-                    "genre": book_data_tuple[3],
-                    "publication_year": book_data_tuple[4],
-                    "available_copies": book_data_tuple[5],
-                    "total_copies": book_data_tuple[6],
-                    "image_path": book_data_tuple[7],
-                    "status": book_data_tuple[8]
-                }
+            # Add book cards to grid (4 columns for better display)
+            for i, book in enumerate(books):
+                book_data = book.to_dict()  # Use Book model's to_dict method
                 
                 book_card = BookCard(book_data, self.app)
                 book_card.checkout_button_clicked.connect(self.handle_checkout)
@@ -432,95 +402,42 @@ class ReaderDashboard(QWidget):
             self.books_grid_layout.addWidget(error_label, 0, 0, 1, 4)
 
     def perform_search(self):
-        """Search for books based on input text"""
+        """Search for books based on input text."""
         search_text = self.search_input.text().strip()
         self.load_books_data(search_text)
 
     def clear_search(self):
-        """Clear search and reload all books"""
+        """Clear search and reload all books."""
         self.search_input.clear()
         self.load_books_data()
 
     def handle_checkout(self, book_id):
-        """Handle book checkout with full database integration"""
+        """Handle book checkout using Transaction model."""
         if not self.app.current_user or not self.user_id:
             QMessageBox.warning(self, "Login Required", "Please log in to check out books.")
             return
         
         try:
-            # Check if book exists and is available
-            book_data = db_manager.fetch_one(
-                "SELECT title, available_copies, total_copies FROM books WHERE id = ?", 
-                (book_id,)
-            )
+            # Use Transaction model to create loan
+            success, result = Transaction.create_loan(book_id, self.user_id)
             
-            if not book_data:
-                QMessageBox.warning(self, "Book Not Found", "The selected book was not found.")
-                return
-            
-            title, available_copies, total_copies = book_data
-            
-            if available_copies <= 0:
-                QMessageBox.warning(
-                    self, "Book Unavailable", 
-                    f'"{title}" is currently not available.\n\nAll {total_copies} copies are checked out.'
-                )
-                return
-            
-            # Check if user already has this book
-            existing_loan = db_manager.fetch_one(
-                "SELECT id FROM loans WHERE user_id = ? AND book_id = ? AND return_date IS NULL",
-                (self.user_id, book_id)
-            )
-            
-            if existing_loan:
-                QMessageBox.warning(
-                    self, "Already Borrowed", 
-                    f'You already have "{title}" checked out.'
-                )
-                return
-            
-            # Check user's loan limit (optional - you can set a limit like 5 books max)
-            current_loans = db_manager.fetch_one(
-                "SELECT COUNT(*) FROM loans WHERE user_id = ? AND return_date IS NULL", 
-                (self.user_id,)
-            )[0] or 0
-            
-            MAX_LOANS = 5  # Set your library's loan limit
-            if current_loans >= MAX_LOANS:
-                QMessageBox.warning(
-                    self, "Loan Limit Reached", 
-                    f"You have reached the maximum loan limit of {MAX_LOANS} books.\n\n"
-                    "Please return some books before checking out new ones."
-                )
-                return
-            
-            # Perform the checkout
-            loan_success = db_manager.execute_query(
-                "INSERT INTO loans (user_id, book_id, loan_date) VALUES (?, ?, DATE('now'))",
-                (self.user_id, book_id)
-            )
-            
-            book_success = db_manager.execute_query(
-                "UPDATE books SET available_copies = available_copies - 1 WHERE id = ?",
-                (book_id,)
-            )
-            
-            if loan_success and book_success:
+            if success:
+                loan = result
+                book = loan.get_book()
+                user = loan.get_user()
+                
                 QMessageBox.information(
                     self, "Checkout Successful", 
-                    f'"{title}" has been checked out successfully!\n\n'
-                    "Due date: 14 days from today\n"
+                    f'"{book.title}" has been checked out successfully!\n\n'
+                    f"Due date: {loan.due_date}\n"
                     "Please return it on time to avoid late fees.\n\n"
-                    f"You now have {current_loans + 1} book(s) checked out."
+                    f"You now have {len(Transaction.get_user_loans(self.user_id, active_only=True))} book(s) checked out."
                 )
                 # Refresh all data
                 self.load_data()
             else:
-                QMessageBox.critical(
-                    self, "Checkout Failed", 
-                    "There was an error processing your checkout. Please try again or contact a librarian."
-                )
+                # Show error message from Transaction model
+                QMessageBox.critical(self, "Checkout Failed", result)
                 
         except Exception as e:
             print(f"Error during checkout: {e}")
@@ -531,9 +448,10 @@ class ReaderDashboard(QWidget):
             )
 
     def handle_logout(self):
-        """Handle user logout"""
+        """Handle user logout."""
         self.app.current_user = None
         self.app.user_type = None
         self.user_id = None
         self.username = "Guest"
+        self.user_model = None
         self.app.switch_to_welcome()
