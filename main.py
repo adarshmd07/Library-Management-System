@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt
 from screens.auth.welcome import WelcomeScreen  
 from screens.auth.login import LoginScreen
 from screens.auth.register import RegisterScreen
-from screens.reader.dashboard import ReaderDashboardd
+from screens.reader.dashboard import ReaderDashboard
 from screens.librarian.dashboard import LibrarianDashboard
 from config import Config
 from styles.style_manager import StyleManager
