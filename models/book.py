@@ -1,4 +1,4 @@
-from database import db_manager
+from database import get_db
 from datetime import datetime
 import os
 import shutil
@@ -81,8 +81,8 @@ class Book:
         
         # Check if ISBN already exists (only if ISBN is provided)
         if self.isbn and self.isbn.strip():
-            existing_book = db_manager.fetch_one(
-                "SELECT id FROM books WHERE isbn = ? AND id != ?",
+            existing_book = get_db().fetch_one(
+                "SELECT id FROM books WHERE isbn = %s AND id != %s",
                 (self.isbn, self.id or 0)
             )
             
@@ -93,12 +93,12 @@ class Book:
             # Update existing book
             query = """
                 UPDATE books 
-                SET title = ?, author = ?, isbn = ?, genre = ?, 
-                    publication_year = ?, total_copies = ?, 
-                    available_copies = ?, image_path = ?
-                WHERE id = ?
+                SET title = %s, author = %s, isbn = %s, genre = %s, 
+                    publication_year = %s, total_copies = %s, 
+                    available_copies = %s, image_path = %s
+                WHERE id = %s
             """
-            success = db_manager.execute_query(
+            success = get_db().execute_query(
                 query, 
                 (self.title, self.author, self.isbn, self.genre, 
                  self.publication_year, self.total_copies, 
@@ -110,9 +110,9 @@ class Book:
             query = """
                 INSERT INTO books (title, author, isbn, genre, publication_year, 
                                  total_copies, available_copies, image_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
-            success = db_manager.execute_query(
+            success = get_db().execute_query(
                 query, 
                 (self.title, self.author, self.isbn, self.genre, 
                  self.publication_year, self.total_copies, 
@@ -120,7 +120,7 @@ class Book:
             )
             
             if success:
-                self.id = db_manager.fetch_one("SELECT last_insert_rowid()")[0]
+                self.id = get_db().fetch_one("SELECT LAST_INSERT_ID()")[0]
                 return True, self.id
             else:
                 return False, "Failed to create book"
@@ -136,9 +136,9 @@ class Book:
         Returns:
             Book or None: Book object if found, None otherwise
         """
-        book_data = db_manager.fetch_one(
+        book_data = get_db().fetch_one(
             "SELECT id, title, author, isbn, genre, publication_year, "
-            "total_copies, available_copies, image_path FROM books WHERE id = ?",
+            "total_copies, available_copies, image_path FROM books WHERE id = %s",
             (book_id,)
         )
         
@@ -167,9 +167,9 @@ class Book:
         Returns:
             Book or None: Book object if found, None otherwise
         """
-        book_data = db_manager.fetch_one(
+        book_data = get_db().fetch_one(
             "SELECT id, title, author, isbn, genre, publication_year, "
-            "total_copies, available_copies, image_path FROM books WHERE isbn = ?",
+            "total_copies, available_copies, image_path FROM books WHERE isbn = %s",
             (isbn,)
         )
         
@@ -211,16 +211,16 @@ class Book:
         params = []
         
         if query:
-            conditions.append("(title LIKE ? OR author LIKE ? OR genre LIKE ?)")
+            conditions.append("(title LIKE %s OR author LIKE %s OR genre LIKE %s)")
             search_param = f"%{query}%"
             params.extend([search_param, search_param, search_param])
         
         if genre:
-            conditions.append("genre LIKE ?")
+            conditions.append("genre LIKE %s")
             params.append(f"%{genre}%")
         
         if author:
-            conditions.append("author LIKE ?")
+            conditions.append("author LIKE %s")
             params.append(f"%{author}%")
         
         if available_only:
@@ -231,7 +231,7 @@ class Book:
         
         base_query += " ORDER BY title"
         
-        books_data = db_manager.fetch_all(base_query, params)
+        books_data = get_db().fetch_all(base_query, params)
         
         books = []
         for book_data in books_data or []:
@@ -271,7 +271,7 @@ class Book:
             ORDER BY {order_by}
         """
         
-        books_data = db_manager.fetch_all(query)
+        books_data = get_db().fetch_all(query)
         
         books = []
         for book_data in books_data or []:
@@ -300,8 +300,8 @@ class Book:
             return False, "Cannot delete book without ID"
         
         # Check if book has active loans
-        active_loans = db_manager.fetch_one(
-            "SELECT COUNT(*) FROM loans WHERE book_id = ? AND return_date IS NULL",
+        active_loans = get_db().fetch_one(
+            "SELECT COUNT(*) FROM loans WHERE book_id = %s AND return_date IS NULL",
             (self.id,)
         )[0]
         
@@ -315,7 +315,7 @@ class Book:
             except Exception as e:
                 print(f"Warning: Could not delete image file {self.image_path}: {e}")
         
-        success = db_manager.execute_query("DELETE FROM books WHERE id = ?", (self.id,))
+        success = get_db().execute_query("DELETE FROM books WHERE id = %s", (self.id,))
         return success, "Book deleted successfully" if success else "Failed to delete book"
     
     def is_available(self):
@@ -338,8 +338,8 @@ class Book:
             return False, "Book is not available for checkout"
         
         self.available_copies -= 1
-        success = db_manager.execute_query(
-            "UPDATE books SET available_copies = ? WHERE id = ?",
+        success = get_db().execute_query(
+            "UPDATE books SET available_copies = %s WHERE id = %s",
             (self.available_copies, self.id)
         )
         
@@ -356,8 +356,8 @@ class Book:
             return False, "All copies are already available"
         
         self.available_copies += 1
-        success = db_manager.execute_query(
-            "UPDATE books SET available_copies = ? WHERE id = ?",
+        success = get_db().execute_query(
+            "UPDATE books SET available_copies = %s WHERE id = %s",
             (self.available_copies, self.id)
         )
         
@@ -399,8 +399,8 @@ class Book:
             
             # Update in database if book exists
             if self.id:
-                db_manager.execute_query(
-                    "UPDATE books SET image_path = ? WHERE id = ?",
+                get_db().execute_query(
+                    "UPDATE books SET image_path = %s WHERE id = %s",
                     (self.image_path, self.id)
                 )
             
@@ -419,8 +419,8 @@ class Book:
         if not self.id:
             return 0
         
-        result = db_manager.fetch_one(
-            "SELECT COUNT(*) FROM loans WHERE book_id = ?",
+        result = get_db().fetch_one(
+            "SELECT COUNT(*) FROM loans WHERE book_id = %s",
             (self.id,)
         )
         
@@ -436,8 +436,8 @@ class Book:
         if not self.id:
             return 0
         
-        result = db_manager.fetch_one(
-            "SELECT COUNT(*) FROM loans WHERE book_id = ? AND return_date IS NULL",
+        result = get_db().fetch_one(
+            "SELECT COUNT(*) FROM loans WHERE book_id = %s AND return_date IS NULL",
             (self.id,)
         )
         
@@ -457,11 +457,11 @@ class Book:
             SELECT l.id, u.username, u.full_name, l.loan_date, l.return_date
             FROM loans l
             JOIN users u ON l.user_id = u.id
-            WHERE l.book_id = ?
+            WHERE l.book_id = %s
             ORDER BY l.loan_date DESC
         """
         
-        return db_manager.fetch_all(query, (self.id,)) or []
+        return get_db().fetch_all(query, (self.id,)) or []
     
     def to_dict(self):
         """
@@ -502,10 +502,10 @@ class Book:
             LEFT JOIN loans l ON b.id = l.book_id
             GROUP BY b.id
             ORDER BY loan_count DESC, b.title
-            LIMIT ?
+            LIMIT %s
         """
         
-        books_data = db_manager.fetch_all(query, (limit,))
+        books_data = get_db().fetch_all(query, (limit,))
         
         books = []
         for book_data in books_data or []:

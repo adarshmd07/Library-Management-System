@@ -10,7 +10,7 @@ from screens.reader.dashboard import ReaderDashboard
 from screens.librarian.dashboard import LibrarianDashboard
 from config import Config
 from styles.style_manager import StyleManager
-from database import get_db_manager
+from database import get_db_manager, set_db_manager
 import database as db_module
 
 class LibraryApp:
@@ -85,8 +85,8 @@ class LibraryApp:
             if not db_manager:
                 return False
             
-            # Set global db_manager
-            db_module.db_manager = db_manager
+            # Set global db_manager using the setter
+            set_db_manager(db_manager)
             
             # Import after setting db_manager
             from models.user import User
