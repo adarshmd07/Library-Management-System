@@ -1,4 +1,4 @@
-import mysql.connector
+import mysql.connector as connector
 from mysql.connector import Error
 from config import Config
 
@@ -30,7 +30,7 @@ class DatabaseManager:
         """Establishes a connection to the MySQL server."""
         try:
             # First connect without specifying database to create it if needed
-            self.conn = mysql.connector.connect(
+            self.conn = connector.connect(
                 host=self.host,
                 user=self.user,
                 password=self.password
