@@ -1,4 +1,4 @@
-from database import db_manager
+from database import get_db_manager
 from datetime import datetime
 import re
 import hashlib
@@ -96,7 +96,7 @@ class User:
             return False, "; ".join(errors)
         
         # Check if username or email already exists
-        existing_user = db_manager.fetch_one(
+        existing_user = get_db_manager.fetch_one(
             "SELECT id FROM users WHERE username = ? OR email = ?",
             (self.username, self.email)
         )
@@ -113,7 +113,7 @@ class User:
                 SET username = ?, full_name = ?, email = ?, password = ?, user_type = ?
                 WHERE id = ?
             """
-            success = db_manager.execute_query(
+            success = get_db_manager.execute_query(
                 query, 
                 (self.username, self.full_name, self.email, hashed_password, 
                  self.user_type, self.id)
@@ -125,13 +125,13 @@ class User:
                 INSERT INTO users (username, full_name, email, password, user_type)
                 VALUES (?, ?, ?, ?, ?)
             """
-            success = db_manager.execute_query(
+            success = get_db_manager.execute_query(
                 query, 
                 (self.username, self.full_name, self.email, hashed_password, self.user_type)
             )
             
             if success:
-                self.id = db_manager.fetch_one("SELECT last_insert_rowid()")[0]
+                self.id = get_db_manager.fetch_one("SELECT last_insert_rowid()")[0]
                 return True, self.id
             else:
                 return False, "Failed to create user"
@@ -150,7 +150,7 @@ class User:
         """
         hashed_password = cls.hash_password(password)
         
-        user_data = db_manager.fetch_one(
+        user_data = get_db_manager.fetch_one(
             "SELECT id, username, full_name, email, user_type FROM users "
             "WHERE (username = ? OR email = ?) AND password = ?",
             (username, username, hashed_password)
@@ -177,7 +177,7 @@ class User:
         Returns:
             User or None: User object if found, None otherwise
         """
-        user_data = db_manager.fetch_one(
+        user_data = get_db_manager.fetch_one(
             "SELECT id, username, full_name, email, user_type FROM users WHERE id = ?",
             (user_id,)
         )
@@ -203,7 +203,7 @@ class User:
         Returns:
             User or None: User object if found, None otherwise
         """
-        user_data = db_manager.fetch_one(
+        user_data = get_db_manager.fetch_one(
             "SELECT id, username, full_name, email, user_type FROM users WHERE username = ?",
             (username,)
         )
@@ -236,7 +236,7 @@ class User:
             query = "SELECT id, username, full_name, email, user_type FROM users ORDER BY full_name"
             params = ()
         
-        users_data = db_manager.fetch_all(query, params)
+        users_data = get_db_manager.fetch_all(query, params)
         
         users = []
         for user_data in users_data or []:
@@ -261,7 +261,7 @@ class User:
             return False, "Cannot delete user without ID"
         
         # Check if user has active loans
-        active_loans = db_manager.fetch_one(
+        active_loans = get_db_manager.fetch_one(
             "SELECT COUNT(*) FROM loans WHERE user_id = ? AND return_date IS NULL",
             (self.id,)
         )[0]
@@ -269,7 +269,7 @@ class User:
         if active_loans > 0:
             return False, f"Cannot delete user with {active_loans} active loans"
         
-        success = db_manager.execute_query("DELETE FROM users WHERE id = ?", (self.id,))
+        success = get_db_manager.execute_query("DELETE FROM users WHERE id = ?", (self.id,))
         return success, "User deleted successfully" if success else "Failed to delete user"
     
     def get_active_loans_count(self):
@@ -282,7 +282,7 @@ class User:
         if not self.id:
             return 0
         
-        result = db_manager.fetch_one(
+        result = get_db_manager.fetch_one(
             "SELECT COUNT(*) FROM loans WHERE user_id = ? AND return_date IS NULL",
             (self.id,)
         )
@@ -299,7 +299,7 @@ class User:
         if not self.id:
             return 0
         
-        result = db_manager.fetch_one(
+        result = get_db_manager.fetch_one(
             "SELECT COUNT(*) FROM loans WHERE user_id = ?",
             (self.id,)
         )
@@ -323,7 +323,7 @@ class User:
             return False, "Password must be at least 8 characters long"
         
         hashed_password = self.hash_password(new_password)
-        success = db_manager.execute_query(
+        success = get_db_manager.execute_query(
             "UPDATE users SET password = ? WHERE id = ?",
             (hashed_password, self.id)
         )

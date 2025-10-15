@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from PySide6.QtWidgets import QApplication, QStackedWidget
+from PySide6.QtWidgets import QApplication, QStackedWidget, QMessageBox
 from PySide6.QtGui import QIcon
 from PySide6.QtCore import Qt
 from screens.auth.welcome import WelcomeScreen  
@@ -10,7 +10,8 @@ from screens.reader.dashboard import ReaderDashboard
 from screens.librarian.dashboard import LibrarianDashboard
 from config import Config
 from styles.style_manager import StyleManager
-from database import db_manager
+from database import get_db_manager
+import database as db_module
 
 class LibraryApp:
     """
@@ -35,8 +36,14 @@ class LibraryApp:
         # Set application icon
         self.set_app_icon()
         
-        # Initialize database and create sample data if needed
-        self.init_database()
+        # Initialize database (with setup dialog if needed)
+        if not self.init_database():
+            QMessageBox.critical(
+                None,
+                "Database Error",
+                "Failed to initialize database. Application will exit."
+            )
+            sys.exit(1)
             
         self.init_ui()
 
@@ -72,17 +79,32 @@ class LibraryApp:
     def init_database(self):
         """Initialize database and create sample data if needed."""
         try:
-            # Check if we need to create sample data
+            # Get database manager (will show setup dialog if needed)
+            db_manager = get_db_manager()
+            
+            if not db_manager:
+                return False
+            
+            # Set global db_manager
+            db_module.db_manager = db_manager
+            
+            # Import after setting db_manager
             from models.user import User
             from models.book import Book
             
+            # Check if we need to create sample data
             existing_users = User.get_all()
-            if not existing_users:
+            if not existing_users or len(existing_users) == 0:
                 print("Creating sample data...")
                 self.create_sample_data()
+            
+            return True
                 
         except Exception as e:
             print(f"Database initialization error: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     def create_sample_data(self):
         """Create sample users and books for demonstration."""
@@ -298,8 +320,8 @@ class LibraryApp:
         """Handle application close event."""
         try:
             # Close database connection if needed
-            if hasattr(db_manager, 'close'):
-                db_manager.close()
+            if db_module.db_manager and hasattr(db_module.db_manager, 'close'):
+                db_module.db_manager.close()
         except Exception as e:
             print(f"Error during application shutdown: {e}")
         
@@ -313,8 +335,8 @@ class LibraryApp:
             print(f"Application error: {e}")
             # Attempt graceful shutdown
             try:
-                if hasattr(db_manager, 'close'):
-                    db_manager.close()
+                if db_module.db_manager and hasattr(db_module.db_manager, 'close'):
+                    db_module.db_manager.close()
             except:
                 pass
             sys.exit(1)
