@@ -1,4 +1,4 @@
-from database import get_db_manager
+from database import get_db
 from datetime import datetime
 import re
 import hashlib
@@ -96,8 +96,8 @@ class User:
             return False, "; ".join(errors)
         
         # Check if username or email already exists
-        existing_user = get_db_manager.fetch_one(
-            "SELECT id FROM users WHERE username = ? OR email = ?",
+        existing_user = get_db().fetch_one(
+            "SELECT id FROM users WHERE username = %s OR email = %s",
             (self.username, self.email)
         )
         
@@ -110,10 +110,10 @@ class User:
             # Update existing user
             query = """
                 UPDATE users 
-                SET username = ?, full_name = ?, email = ?, password = ?, user_type = ?
-                WHERE id = ?
+                SET username = %s, full_name = %s, email = %s, password = %s, user_type = %s
+                WHERE id = %s
             """
-            success = get_db_manager.execute_query(
+            success = get_db().execute_query(
                 query, 
                 (self.username, self.full_name, self.email, hashed_password, 
                  self.user_type, self.id)
@@ -123,15 +123,15 @@ class User:
             # Create new user
             query = """
                 INSERT INTO users (username, full_name, email, password, user_type)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
             """
-            success = get_db_manager.execute_query(
+            success = get_db().execute_query(
                 query, 
                 (self.username, self.full_name, self.email, hashed_password, self.user_type)
             )
             
             if success:
-                self.id = get_db_manager.fetch_one("SELECT last_insert_rowid()")[0]
+                self.id = get_db().fetch_one("SELECT LAST_INSERT_ID()")[0]
                 return True, self.id
             else:
                 return False, "Failed to create user"
@@ -150,9 +150,9 @@ class User:
         """
         hashed_password = cls.hash_password(password)
         
-        user_data = get_db_manager.fetch_one(
+        user_data = get_db().fetch_one(
             "SELECT id, username, full_name, email, user_type FROM users "
-            "WHERE (username = ? OR email = ?) AND password = ?",
+            "WHERE (username = %s OR email = %s) AND password = %s",
             (username, username, hashed_password)
         )
         
@@ -177,8 +177,8 @@ class User:
         Returns:
             User or None: User object if found, None otherwise
         """
-        user_data = get_db_manager.fetch_one(
-            "SELECT id, username, full_name, email, user_type FROM users WHERE id = ?",
+        user_data = get_db().fetch_one(
+            "SELECT id, username, full_name, email, user_type FROM users WHERE id = %s",
             (user_id,)
         )
         
@@ -203,8 +203,8 @@ class User:
         Returns:
             User or None: User object if found, None otherwise
         """
-        user_data = get_db_manager.fetch_one(
-            "SELECT id, username, full_name, email, user_type FROM users WHERE username = ?",
+        user_data = get_db().fetch_one(
+            "SELECT id, username, full_name, email, user_type FROM users WHERE username = %s",
             (username,)
         )
         
@@ -230,13 +230,13 @@ class User:
             list: List of User objects
         """
         if user_type:
-            query = "SELECT id, username, full_name, email, user_type FROM users WHERE user_type = ? ORDER BY full_name"
+            query = "SELECT id, username, full_name, email, user_type FROM users WHERE user_type = %s ORDER BY full_name"
             params = (user_type,)
         else:
             query = "SELECT id, username, full_name, email, user_type FROM users ORDER BY full_name"
             params = ()
         
-        users_data = get_db_manager.fetch_all(query, params)
+        users_data = get_db().fetch_all(query, params)
         
         users = []
         for user_data in users_data or []:
@@ -261,15 +261,15 @@ class User:
             return False, "Cannot delete user without ID"
         
         # Check if user has active loans
-        active_loans = get_db_manager.fetch_one(
-            "SELECT COUNT(*) FROM loans WHERE user_id = ? AND return_date IS NULL",
+        active_loans = get_db().fetch_one(
+            "SELECT COUNT(*) FROM loans WHERE user_id = %s AND return_date IS NULL",
             (self.id,)
         )[0]
         
         if active_loans > 0:
             return False, f"Cannot delete user with {active_loans} active loans"
         
-        success = get_db_manager.execute_query("DELETE FROM users WHERE id = ?", (self.id,))
+        success = get_db().execute_query("DELETE FROM users WHERE id = %s", (self.id,))
         return success, "User deleted successfully" if success else "Failed to delete user"
     
     def get_active_loans_count(self):
@@ -282,8 +282,8 @@ class User:
         if not self.id:
             return 0
         
-        result = get_db_manager.fetch_one(
-            "SELECT COUNT(*) FROM loans WHERE user_id = ? AND return_date IS NULL",
+        result = get_db().fetch_one(
+            "SELECT COUNT(*) FROM loans WHERE user_id = %s AND return_date IS NULL",
             (self.id,)
         )
         
@@ -299,8 +299,8 @@ class User:
         if not self.id:
             return 0
         
-        result = get_db_manager.fetch_one(
-            "SELECT COUNT(*) FROM loans WHERE user_id = ?",
+        result = get_db().fetch_one(
+            "SELECT COUNT(*) FROM loans WHERE user_id = %s",
             (self.id,)
         )
         
@@ -323,8 +323,8 @@ class User:
             return False, "Password must be at least 8 characters long"
         
         hashed_password = self.hash_password(new_password)
-        success = get_db_manager.execute_query(
-            "UPDATE users SET password = ? WHERE id = ?",
+        success = get_db().execute_query(
+            "UPDATE users SET password = %s WHERE id = %s",
             (hashed_password, self.id)
         )
         

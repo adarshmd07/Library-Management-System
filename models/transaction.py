@@ -1,4 +1,4 @@
-from database import db_manager
+from database import get_db
 from datetime import datetime, timedelta
 from models.book import Book
 from models.user import User
@@ -88,8 +88,8 @@ class Transaction:
         
         # Check if user already has this book (for new loans)
         if not self.id:  # New transaction
-            existing_loan = db_manager.fetch_one(
-                "SELECT id FROM loans WHERE user_id = ? AND book_id = ? AND return_date IS NULL",
+            existing_loan = get_db().fetch_one(
+                "SELECT id FROM loans WHERE user_id = %s AND book_id = %s AND return_date IS NULL",
                 (self.user_id, self.book_id)
             )
             if existing_loan:
@@ -112,11 +112,11 @@ class Transaction:
             # Update existing transaction
             query = """
                 UPDATE loans 
-                SET book_id = ?, user_id = ?, loan_date = ?, 
-                    return_date = ?
-                WHERE id = ?
+                SET book_id = %s, user_id = %s, loan_date = %s, 
+                    return_date = %s
+                WHERE id = %s
             """
-            success = db_manager.execute_query(
+            success = get_db().execute_query(
                 query, 
                 (self.book_id, self.user_id, self.loan_date, 
                  self.return_date, self.id)
@@ -126,15 +126,15 @@ class Transaction:
             # Create new transaction
             query = """
                 INSERT INTO loans (book_id, user_id, loan_date, return_date)
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
             """
-            success = db_manager.execute_query(
+            success = get_db().execute_query(
                 query, 
                 (self.book_id, self.user_id, self.loan_date, self.return_date)
             )
             
             if success:
-                self.id = db_manager.fetch_one("SELECT last_insert_rowid()")[0]
+                self.id = get_db().fetch_one("SELECT LAST_INSERT_ID()")[0]
                 # Update book availability
                 book = Book.find_by_id(self.book_id)
                 if book:
@@ -177,8 +177,8 @@ class Transaction:
         self.status = "returned"
         
         # Update in database
-        success = db_manager.execute_query(
-            "UPDATE loans SET return_date = ? WHERE id = ?",
+        success = get_db().execute_query(
+            "UPDATE loans SET return_date = %s WHERE id = %s",
             (self.return_date, self.id)
         )
         
@@ -305,8 +305,8 @@ class Transaction:
         Returns:
             Transaction or None: Transaction object if found
         """
-        transaction_data = db_manager.fetch_one(
-            "SELECT id, book_id, user_id, loan_date, return_date FROM loans WHERE id = ?",
+        transaction_data = get_db().fetch_one(
+            "SELECT id, book_id, user_id, loan_date, return_date FROM loans WHERE id = %s",
             (transaction_id,)
         )
         
@@ -332,7 +332,7 @@ class Transaction:
         Returns:
             list: List of Transaction objects
         """
-        base_query = "SELECT id, book_id, user_id, loan_date, return_date FROM loans WHERE user_id = ?"
+        base_query = "SELECT id, book_id, user_id, loan_date, return_date FROM loans WHERE user_id = %s"
         params = [user_id]
         
         if active_only:
@@ -340,7 +340,7 @@ class Transaction:
         
         base_query += " ORDER BY loan_date DESC"
         
-        transactions_data = db_manager.fetch_all(base_query, params)
+        transactions_data = get_db().fetch_all(base_query, params)
         
         transactions = []
         for transaction_data in transactions_data or []:
@@ -368,7 +368,7 @@ class Transaction:
         Returns:
             list: List of Transaction objects
         """
-        base_query = "SELECT id, book_id, user_id, loan_date, return_date FROM loans WHERE book_id = ?"
+        base_query = "SELECT id, book_id, user_id, loan_date, return_date FROM loans WHERE book_id = %s"
         params = [book_id]
         
         if active_only:
@@ -376,7 +376,7 @@ class Transaction:
         
         base_query += " ORDER BY loan_date DESC"
         
-        transactions_data = db_manager.fetch_all(base_query, params)
+        transactions_data = get_db().fetch_all(base_query, params)
         
         transactions = []
         for transaction_data in transactions_data or []:
@@ -415,7 +415,7 @@ class Transaction:
         
         base_query += " ORDER BY loan_date DESC"
         
-        transactions_data = db_manager.fetch_all(base_query, params)
+        transactions_data = get_db().fetch_all(base_query, params)
         
         transactions = []
         for transaction_data in transactions_data or []:
@@ -461,7 +461,7 @@ class Transaction:
             ORDER BY loan_date
         """.format(days)
         
-        transactions_data = db_manager.fetch_all(query)
+        transactions_data = get_db().fetch_all(query)
         
         transactions = []
         for transaction_data in transactions_data or []:
@@ -493,7 +493,7 @@ class Transaction:
             if book:
                 book.return_book()
         
-        success = db_manager.execute_query("DELETE FROM loans WHERE id = ?", (self.id,))
+        success = get_db().execute_query("DELETE FROM loans WHERE id = %s", (self.id,))
         return success, "Transaction deleted successfully" if success else "Failed to delete transaction"
     
     def extend_loan(self, additional_days=7):
