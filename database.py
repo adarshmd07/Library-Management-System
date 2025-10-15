@@ -1,33 +1,57 @@
-import sqlite3
-from pathlib import Path
-from config import Config # Import Config to get BASE_DIR
+import mysql.connector
+from mysql.connector import Error
+from config import Config
 
 class DatabaseManager:
     """
-    Manages SQLite database connections and operations for the library system.
+    Manages MySQL database connections and operations for the library system.
     """
-    def __init__(self, db_name="library.db"):
+    def __init__(self, host="localhost", database="library_db", user="root", password=""):
         """
-        Initializes the DatabaseManager, creating the database file if it doesn't exist.
-        The database file will be located in the project's base directory.
+        Initializes the DatabaseManager, connecting to MySQL database.
+        
+        Args:
+            host: MySQL server host (default: localhost)
+            database: Database name (default: library_db)
+            user: MySQL username (default: root)
+            password: MySQL password (default: empty string)
         """
-        # Construct the full path to the database file
-        self.db_path = Config.BASE_DIR / db_name
-        self.conn = None # Connection object
-        self.cursor = None # Cursor object
+        self.host = host
+        self.database = database
+        self.user = user
+        self.password = password
+        self.conn = None
+        self.cursor = None
         self._connect()
+        self._create_database()
         self._create_tables()
 
     def _connect(self):
-        """Establishes a connection to the SQLite database."""
+        """Establishes a connection to the MySQL server."""
         try:
-            self.conn = sqlite3.connect(self.db_path)
+            # First connect without specifying database to create it if needed
+            self.conn = mysql.connector.connect(
+                host=self.host,
+                user=self.user,
+                password=self.password
+            )
             self.cursor = self.conn.cursor()
-            print(f"Successfully connected to database: {self.db_path}")
-        except sqlite3.Error as e:
+            print(f"Successfully connected to MySQL server: {self.host}")
+        except Error as e:
             print(f"Database connection error: {e}")
-            # In a real application, you might want to show a QMessageBox or log this error
-            # and potentially exit the application if the database is critical.
+
+    def _create_database(self):
+        """Creates the database if it doesn't exist."""
+        if not self.conn:
+            print("Cannot create database: No server connection.")
+            return
+        
+        try:
+            self.cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.database}")
+            self.conn.database = self.database
+            print(f"Database '{self.database}' is ready.")
+        except Error as e:
+            print(f"Error creating database: {e}")
 
     def _create_tables(self):
         """Creates necessary tables if they do not already exist."""
@@ -39,45 +63,38 @@ class DatabaseManager:
             # Users table: Stores user information (readers and librarians)
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    full_name TEXT NOT NULL,
-                    email TEXT UNIQUE NOT NULL,
-                    username TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL,
-                    user_type TEXT NOT NULL DEFAULT 'reader'
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    full_name VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) UNIQUE NOT NULL,
+                    username VARCHAR(100) UNIQUE NOT NULL,
+                    password VARCHAR(255) NOT NULL,
+                    user_type VARCHAR(50) NOT NULL DEFAULT 'reader'
                 )
             """)
             
             # Books table: Stores book information
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS books (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
-                    author TEXT NOT NULL,
-                    isbn TEXT UNIQUE,
-                    genre TEXT,
-                    publication_year INTEGER,
-                    total_copies INTEGER NOT NULL DEFAULT 1,
-                    available_copies INTEGER NOT NULL DEFAULT 1
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    author VARCHAR(255) NOT NULL,
+                    isbn VARCHAR(50) UNIQUE,
+                    genre VARCHAR(100),
+                    publication_year INT,
+                    total_copies INT NOT NULL DEFAULT 1,
+                    available_copies INT NOT NULL DEFAULT 1,
+                    image_path TEXT
                 )
             """)
-            
-            # Add a migration step to add the new column if it doesn't exist
-            # Check if the column exists before adding it
-            self.cursor.execute("PRAGMA table_info(books)")
-            columns = [column[1] for column in self.cursor.fetchall()]
-            if 'image_path' not in columns:
-                self.cursor.execute("ALTER TABLE books ADD COLUMN image_path TEXT")
-                print("Added 'image_path' column to 'books' table.")
 
             # Loans table: Tracks borrowed books
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS loans (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book_id INTEGER NOT NULL,
-                    user_id INTEGER NOT NULL,
-                    loan_date TEXT NOT NULL,
-                    return_date TEXT,
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    book_id INT NOT NULL,
+                    user_id INT NOT NULL,
+                    loan_date DATE NOT NULL,
+                    return_date DATE,
                     FOREIGN KEY (book_id) REFERENCES books(id),
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 )
@@ -85,7 +102,7 @@ class DatabaseManager:
 
             self.conn.commit()
             print("Database tables checked/created successfully.")
-        except sqlite3.Error as e:
+        except Error as e:
             print(f"Error creating tables: {e}")
             self.conn.rollback()
             
@@ -98,7 +115,7 @@ class DatabaseManager:
             self.cursor.execute(query, params)
             self.conn.commit()
             return True
-        except sqlite3.Error as e:
+        except Error as e:
             print(f"Error executing query '{query}' with params {params}: {e}")
             self.conn.rollback()
             return False
@@ -111,7 +128,7 @@ class DatabaseManager:
         try:
             self.cursor.execute(query, params)
             return self.cursor.fetchone()
-        except sqlite3.Error as e:
+        except Error as e:
             print(f"Error fetching one from query '{query}' with params {params}: {e}")
             return None
 
@@ -123,12 +140,14 @@ class DatabaseManager:
         try:
             self.cursor.execute(query, params)
             return self.cursor.fetchall()
-        except sqlite3.Error as e:
+        except Error as e:
             print(f"Error fetching all from query '{query}' with params {params}: {e}")
             return None
 
     def close(self):
         """Closes the database connection."""
+        if self.cursor:
+            self.cursor.close()
         if self.conn:
             self.conn.close()
             self.conn = None
@@ -136,7 +155,5 @@ class DatabaseManager:
             print("Database connection closed.")
 
 # Instantiate the database manager globally or pass it around
-# For a small application, a global instance might be acceptable,
-# but passing it via dependency injection is generally better for testability.
+# You may want to configure these values in your Config class
 db_manager = DatabaseManager()
-
