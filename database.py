@@ -6,16 +6,32 @@ class DatabaseManager:
     """
     Manages MySQL database connections and operations for the library system.
     """
-    def __init__(self, host="localhost", database="library_db", user="root", password=""):
+    def __init__(self, host=None, database=None, user=None, password=None):
         """
         Initializes the DatabaseManager, connecting to MySQL database.
         
         Args:
-            host: MySQL server host (default: localhost)
-            database: Database name (default: library_db)
-            user: MySQL username (default: root)
-            password: MySQL password (default: empty string)
+            host: MySQL server host
+            database: Database name
+            user: MySQL username
+            password: MySQL password
         """
+        # Load from saved config or use provided values
+        if not all([host, database, user]) and password is None:
+            from db_setup_dialog import load_db_config
+            saved_config = load_db_config()
+            if saved_config:
+                host = saved_config.get('host', 'localhost')
+                database = saved_config.get('database', 'library_db')
+                user = saved_config.get('user', 'root')
+                password = saved_config.get('password', '')
+            else:
+                # Use defaults if no config found
+                host = host or 'localhost'
+                database = database or 'library_db'
+                user = user or 'root'
+                password = password or ''
+        
         self.host = host
         self.database = database
         self.user = user
@@ -39,6 +55,7 @@ class DatabaseManager:
             print(f"Successfully connected to MySQL server: {self.host}")
         except Error as e:
             print(f"Database connection error: {e}")
+            raise  # Re-raise to let caller handle it
 
     def _create_database(self):
         """Creates the database if it doesn't exist."""
@@ -154,6 +171,69 @@ class DatabaseManager:
             self.cursor = None
             print("Database connection closed.")
 
-# Instantiate the database manager globally or pass it around
-# You may want to configure these values in your Config class
-db_manager = DatabaseManager()
+
+def get_db_manager():
+    """
+    Get or create database manager instance.
+    Shows setup dialog if configuration doesn't exist.
+    """
+    from db_setup_dialog import load_db_config, save_db_config, DatabaseSetupDialog
+    from PySide6.QtWidgets import QApplication, QMessageBox, QDialog
+    
+    # Try to load existing config
+    config = load_db_config()
+    
+    if not config:
+        # Show setup dialog
+        app = QApplication.instance()
+        if not app:
+            app = QApplication([])
+        
+        dialog = DatabaseSetupDialog()
+        result = dialog.exec()
+        
+        if result == QDialog.DialogCode.Accepted:
+            config = dialog.get_config()
+            if config:
+                save_db_config(config)
+        else:
+            QMessageBox.critical(
+                None,
+                "Setup Required",
+                "Database configuration is required to run the application."
+            )
+            return None
+    
+    try:
+        return DatabaseManager(
+            host=config['host'],
+            database=config['database'],
+            user=config['user'],
+            password=config['password']
+        )
+    except Exception as e:
+        QMessageBox.critical(
+            None,
+            "Database Error",
+            f"Failed to connect to database:\n{str(e)}\n\n"
+            "Please check your MySQL server is running and try again."
+        )
+        return None
+
+
+# Global database manager instance
+db_manager = None
+
+
+def set_db_manager(manager):
+    """Set the global database manager instance."""
+    global db_manager
+    db_manager = manager
+
+
+def get_db():
+    """Get the current database manager instance."""
+    global db_manager
+    if db_manager is None:
+        raise RuntimeError("Database manager not initialized. Call set_db_manager() first.")
+    return db_manager
