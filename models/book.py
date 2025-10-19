@@ -366,10 +366,11 @@ class Book:
     def save_image(self, source_path, book_covers_dir=None):
         """
         Save book cover image to the appropriate directory.
+        Uses the main project's assets/book_covers directory.
         
         Args:
             source_path (str): Path to source image
-            book_covers_dir (str): Directory to save book covers
+            book_covers_dir (str): Directory to save book covers (optional)
             
         Returns:
             tuple: (success, image_path_or_error)
@@ -379,7 +380,9 @@ class Book:
         
         try:
             # Set default directory if not provided
+            # Use the main project's assets/book_covers directory
             if book_covers_dir is None:
+                # Get the project root (parent of parent of this file)
                 base_dir = Path(__file__).parent.parent
                 book_covers_dir = base_dir / "assets" / "book_covers"
             
@@ -500,7 +503,8 @@ class Book:
                    b.total_copies, b.available_copies, b.image_path, COUNT(l.id) as loan_count
             FROM books b
             LEFT JOIN loans l ON b.id = l.book_id
-            GROUP BY b.id
+            GROUP BY b.id, b.title, b.author, b.isbn, b.genre, b.publication_year,
+                     b.total_copies, b.available_copies, b.image_path
             ORDER BY loan_count DESC, b.title
             LIMIT %s
         """

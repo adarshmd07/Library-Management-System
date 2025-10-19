@@ -10,7 +10,7 @@ from screens.reader.dashboard import ReaderDashboard
 from screens.librarian.dashboard import LibrarianDashboard
 from config import Config
 from styles.style_manager import StyleManager
-from database import get_db_manager, set_db_manager
+from database import DatabaseManager, get_db_manager, set_db_manager
 import database as db_module
 
 class LibraryApp:

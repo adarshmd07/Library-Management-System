@@ -396,6 +396,7 @@ class Transaction:
     def get_all_loans(cls, status_filter=None):
         """
         Get all loans with optional status filter.
+        MySQL-compatible version.
         
         Args:
             status_filter (str): Filter by status ('active', 'returned', 'overdue')
@@ -407,11 +408,13 @@ class Transaction:
         params = []
         
         if status_filter == "active":
-            base_query += " WHERE return_date IS NULL AND DATE('now') <= DATE(loan_date, '+14 days')"
+            # Active: not returned and not overdue (within 14 days)
+            base_query += " WHERE return_date IS NULL AND CURDATE() <= DATE_ADD(loan_date, INTERVAL 14 DAY)"
         elif status_filter == "returned":
             base_query += " WHERE return_date IS NOT NULL"
         elif status_filter == "overdue":
-            base_query += " WHERE return_date IS NULL AND DATE('now') > DATE(loan_date, '+14 days')"
+            # Overdue: not returned and past 14 days
+            base_query += " WHERE return_date IS NULL AND CURDATE() > DATE_ADD(loan_date, INTERVAL 14 DAY)"
         
         base_query += " ORDER BY loan_date DESC"
         
@@ -445,6 +448,7 @@ class Transaction:
     def get_loans_due_soon(cls, days=3):
         """
         Get loans that are due within the specified number of days.
+        MySQL-compatible version.
         
         Args:
             days (int): Number of days to look ahead
@@ -456,12 +460,12 @@ class Transaction:
             SELECT id, book_id, user_id, loan_date, return_date 
             FROM loans 
             WHERE return_date IS NULL 
-            AND DATE('now') <= DATE(loan_date, '+14 days') 
-            AND DATE('now', '+{} days') >= DATE(loan_date, '+14 days')
+            AND CURDATE() <= DATE_ADD(loan_date, INTERVAL 14 DAY)
+            AND DATE_ADD(CURDATE(), INTERVAL %s DAY) >= DATE_ADD(loan_date, INTERVAL 14 DAY)
             ORDER BY loan_date
-        """.format(days)
+        """
         
-        transactions_data = get_db().fetch_all(query)
+        transactions_data = get_db().fetch_all(query, (days,))
         
         transactions = []
         for transaction_data in transactions_data or []:

@@ -3,24 +3,30 @@ from PySide6.QtWidgets import (
     QPushButton, QTableWidget, QTableWidgetItem,
     QHeaderView, QTabWidget, QFrame, QSizePolicy,
     QDialog, QFormLayout, QLineEdit, QSpinBox,
-    QMessageBox, QComboBox, QFileDialog, QScrollArea
+    QMessageBox, QComboBox, QFileDialog, QScrollArea,
+    QGridLayout
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap
+from PySide6.QtCharts import QChart, QChartView, QPieSeries, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis
+from widgets.stat_card import StatCard
 from styles.style_manager import StyleManager
 from widgets.navigation import LibrarianNavigationBar
 from models.book import Book
 from models.user import User
 from models.transaction import Transaction
+from database import DatabaseManager as db_manager, get_db
 from config import Config
 import os
+from datetime import datetime, timedelta
+from pathlib import Path
 
 
 class BookFormDialog(QDialog):
     """Simplified book form dialog using Book model."""
     def __init__(self, parent=None, book_model=None):
         super().__init__(parent)
-        self.book_model = book_model  # Book model instance
+        self.book_model = book_model
         self.is_edit_mode = book_model is not None
         
         self.setWindowTitle("Edit Book" if self.is_edit_mode else "Add New Book")
@@ -254,12 +260,11 @@ class BookFormDialog(QDialog):
 
         # Handle image
         if self.selected_image_path and self.selected_image_path != book.image_path:
-            if book.id:  # Only save image if book has an ID
+            if book.id:
                 success, image_path = book.save_image(self.selected_image_path)
                 if success:
                     book.image_path = image_path
             else:
-                # For new books, we'll save the image after the book is saved
                 book._temp_image_path = self.selected_image_path
 
         return book
@@ -349,12 +354,11 @@ class UserFormDialog(QDialog):
             QMessageBox.warning(self, "Validation Error", "Password is required for new users.")
             return None
 
-        # Create or update User model
         if self.is_edit_mode:
             user = self.user_model
             user.full_name = full_name
             user.user_type = user_type
-            if password:  # Only update password if provided
+            if password:
                 user.password = password
         else:
             user = User(
@@ -369,10 +373,8 @@ class UserFormDialog(QDialog):
 
 
 class LibrarianDashboard(QWidget):
-    """
-    Enhanced librarian dashboard using Book, User, and Transaction models.
-    Significantly reduced code duplication through model integration.
-    """
+    """Librarian dashboard screen with navigation and tabs."""
+
     def __init__(self, app):
         super().__init__()
         self.app = app
@@ -447,12 +449,218 @@ class LibrarianDashboard(QWidget):
         self.init_books_tab()
         self.init_users_tab()
         self.init_loans_tab()
+        self.init_reports_tab()
 
         self.load_books_data()
         self.load_users_data()
         self.load_loans_data()
 
         layout.addWidget(content_frame)
+
+    def _create_stat_card(self, title, value, color="#3498db"):
+        """Create a statistics card for the reports tab."""
+        card = QFrame()
+        card.setStyleSheet(f"""
+            QFrame {{
+                background-color: white;
+                border-radius: 12px;
+                border: 2px solid {color};
+                padding: 20px;
+                min-height: 120px;
+            }}
+        """)
+        
+        layout = QVBoxLayout(card)
+        layout.setSpacing(10)
+        
+        title_label = QLabel(title)
+        title_label.setStyleSheet(f"""
+            font-size: 14px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        """)
+        
+        value_label = QLabel(str(value))
+        value_label.setStyleSheet(f"""
+            font-size: 36px;
+            font-weight: 800;
+            color: {color};
+        """)
+        
+        layout.addWidget(title_label)
+        layout.addWidget(value_label)
+        layout.addStretch()
+        
+        return card
+
+    def init_reports_tab(self):
+        """Initialize reports tab with statistics and charts."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        # Add scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setSpacing(30)
+
+        # Header
+        header = QLabel("Library Analytics Dashboard")
+        StyleManager.style_title_label(header)
+        content_layout.addWidget(header)
+
+        # Stats Cards Row
+        stats_layout = QHBoxLayout()
+        stats_layout.setSpacing(20)
+
+        try:
+            # Get database manager instance
+            db = get_db()
+            
+            # Fetch statistics with parameterized queries
+            books_count = db.fetch_all("SELECT COUNT(*) as count FROM books", ())
+            total_books = books_count[0][0] if books_count and len(books_count) > 0 and len(books_count[0]) > 0 else 0
+
+            users_count = db.fetch_all("SELECT COUNT(*) as count FROM users", ())
+            total_users = users_count[0][0] if users_count else 0
+
+            active_loans_count = db.fetch_all(
+                "SELECT COUNT(*) as count FROM loans WHERE return_date IS NULL",
+                ()
+            )
+            active_loans = active_loans_count[0][0] if active_loans_count else 0
+
+            overdue_loans_count = db.fetch_all(
+                """SELECT COUNT(*) as count FROM loans 
+                WHERE return_date IS NULL AND loan_date < DATE_SUB(CURRENT_DATE, INTERVAL 14 DAY)""",
+            )
+            overdue_loans = overdue_loans_count[0][0] if overdue_loans_count else 0
+
+            # Create stat cards
+            stats = [
+                {"title": "Total Books", "value": total_books, "color": "#3b82f6", "icon": "📚"},
+                {"title": "Active Users", "value": total_users, "color": "#10b981", "icon": "👥"},
+                {"title": "Current Loans", "value": active_loans, "color": "#f59e0b", "icon": "📖"},
+                {"title": "Overdue Books", "value": overdue_loans, "color": "#ef4444", "icon": "⚠️"}
+            ]
+
+            for stat in stats:
+                card = StatCard(**stat)
+                stats_layout.addWidget(card)
+
+        except Exception as e:
+            print(f"Error loading statistics: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to load statistics: {str(e)}")
+
+        content_layout.addLayout(stats_layout)
+        
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
+        
+        self.tab_widget.addTab(tab, "Reports")
+        return tab
+
+    def export_report(self):
+        """Export the report to a text file."""
+        try:
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Report",
+                f"library_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                "Text Files (*.txt);;All Files (*)"
+            )
+            
+            if not file_path:
+                return
+            
+            # Gather statistics
+            total_books = len(Book.get_all())
+            total_users = len(User.get_all())
+            total_loans = len(Transaction.get_all_loans())
+            active_loans = len(Transaction.get_all_loans(status_filter="active"))
+            overdue_loans = len(Transaction.get_overdue_loans())
+            
+            all_books = Book.get_all()
+            total_copies = sum(book.total_copies for book in all_books)
+            available_copies = sum(book.available_copies for book in all_books)
+            availability_rate = (available_copies / total_copies * 100) if total_copies > 0 else 0
+            
+            # Generate report content
+            report = f"""
+{'='*60}
+LIBRARY MANAGEMENT SYSTEM - STATISTICAL REPORT
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+{'='*60}
+
+OVERVIEW STATISTICS
+{'-'*60}
+Total Books:              {total_books}
+Total Users:              {total_users}
+Total Loans (All Time):   {total_loans}
+Active Loans:             {active_loans}
+Overdue Loans:            {overdue_loans}
+Availability Rate:        {availability_rate:.1f}%
+
+MOST POPULAR BOOKS
+{'-'*60}
+"""
+            
+            popular_books = Book.get_popular_books(limit=10)
+            for i, book in enumerate(popular_books, 1):
+                loan_count = book.get_loans_count()
+                report += f"{i}. {book.title} by {book.author} - {loan_count} loans\n"
+            
+            report += f"\n\nMOST ACTIVE READERS\n{'-'*60}\n"
+            
+            all_users = User.get_all(user_type="reader")
+            user_stats = []
+            for user in all_users:
+                total_count = user.get_total_loans_count()
+                if total_count > 0:
+                    user_stats.append((user, total_count))
+            
+            user_stats.sort(key=lambda x: x[1], reverse=True)
+            for i, (user, total_count) in enumerate(user_stats[:10], 1):
+                report += f"{i}. {user.full_name} ({user.username}) - {total_count} loans\n"
+            
+            report += f"\n\nGENRE DISTRIBUTION\n{'-'*60}\n"
+            
+            genre_counts = {}
+            for book in all_books:
+                genre = book.genre or "Unspecified"
+                genre_counts[genre] = genre_counts.get(genre, 0) + 1
+            
+            sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)
+            
+            for genre, count in sorted_genres:
+                percentage = (count / total_books * 100) if total_books > 0 else 0
+                report += f"{genre}: {count} books ({percentage:.1f}%)\n"
+            
+            report += f"\n\n{'='*60}\nEND OF REPORT\n{'='*60}\n"
+            
+            # Write to file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(report)
+            
+            QMessageBox.information(
+                self,
+                "Export Successful",
+                f"Report has been exported successfully to:\n{file_path}"
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"Failed to export report:\n{str(e)}"
+            )
 
     def _create_tab_content(self, tab_name, add_button_text, add_button_callback, columns, table_ref):
         """Helper method to create consistent tab layouts."""
@@ -754,8 +962,7 @@ class LibrarianDashboard(QWidget):
                     item = QTableWidgetItem(value)
                     item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                     
-                    # Set text color for status column using QTableWidgetItem methods
-                    if col == 5:  # Status column
+                    if col == 5:
                         from PySide6.QtGui import QColor
                         if loan.status == "overdue":
                             item.setForeground(QColor("#dc2626"))
@@ -766,7 +973,6 @@ class LibrarianDashboard(QWidget):
                     
                     self.loans_table.setItem(row_idx, col, item)
 
-                # Create action buttons based on loan status
                 buttons = []
                 if not loan.return_date:
                     ret_btn = QPushButton("Return")
@@ -791,7 +997,6 @@ class LibrarianDashboard(QWidget):
                 try:
                     success, result = book.save()
                     if success:
-                        # Handle image saving for new books
                         if hasattr(book, '_temp_image_path'):
                             book.save_image(book._temp_image_path)
                         
@@ -896,7 +1101,6 @@ class LibrarianDashboard(QWidget):
                 if not selected_rows:
                     QMessageBox.warning(self, "No Selection", "Please select a loan to mark as returned.")
                     return
-                # Get loan ID from selected row and find the loan
                 loan_id = int(self.loans_table.item(selected_rows[0].row(), 0).text())
                 loan = Transaction.find_by_id(loan_id)
             
