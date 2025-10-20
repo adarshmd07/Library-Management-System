@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QPushButton, QFrame, QMessageBox, QApplication
 )
 from PySide6.QtGui import QPixmap
+from utils import resource_path 
 from models.user import User
 import sys
 
@@ -64,7 +65,7 @@ class LoginScreen(QWidget):
 
         icon_label = QLabel()
         try:
-            icon_pixmap = QPixmap("assets/lms.png")
+            icon_pixmap = QPixmap(resource_path("assets/lms.png"))
             if not icon_pixmap.isNull():
                 dpr = self.devicePixelRatioF()
                 target_size = QSize(80, 80) * dpr

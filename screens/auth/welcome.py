@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QPixmap
+from utils import resource_path
 
 class WelcomeScreen(QWidget):
     def __init__(self, app):
@@ -215,7 +216,7 @@ class WelcomeScreen(QWidget):
         icon_label.setAlignment(Qt.AlignCenter)
         
         try:
-            pixmap = QPixmap(icon_path)
+            pixmap = QPixmap(resource_path(icon_path))
             if not pixmap.isNull():
                 # Get device pixel ratio for high DPI displays
                 dpr = self.devicePixelRatioF()
