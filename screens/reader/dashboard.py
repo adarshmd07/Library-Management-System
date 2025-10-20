@@ -388,7 +388,7 @@ class ReaderDashboard(QWidget):
                 book_data = book.to_dict()  # Use Book model's to_dict method
                 
                 book_card = BookCard(book_data, self.app)
-                book_card.checkout_button_clicked.connect(self.handle_checkout)
+                book_card.checkout_button_clicked.connect(self.handle_checkout, book_data['id'])
                 
                 row = i // 4
                 col = i % 4

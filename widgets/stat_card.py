@@ -1,75 +1,66 @@
-from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QHBoxLayout, QSizePolicy
+from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QSizePolicy
 from PySide6.QtCore import Qt
-from styles.style_manager import StyleManager
+from PySide6.QtGui import QFont
 
 class StatCard(QFrame):
+    """Enhanced stat card widget for displaying statistics with icon, title, and value."""
+    
     def __init__(self, title, value, color, icon, parent=None):
         super().__init__(parent)
-        self.setup_ui(title, value, color, icon)
+        self.title = title
+        self.value = value
+        self.color = color
+        self.icon = icon
+        # Store labels as instance attributes
+        self.icon_label = None
+        self.title_label = None
+        self.value_label = None
+        self.setup_ui()
         
-    def setup_ui(self, title, value, color, icon):
-        # Main card styling
-        self.setStyleSheet(f"""
-            StatCard {{
-                background: white;
-                border-radius: 12px;
-                padding: 15px;
-                border: 1px solid #e5e7eb;
-            }}
-        """)
+    def setup_ui(self):
+        """Setup the stat card UI."""
+        self.setMinimumHeight(120)
+        self.setMaximumHeight(140)
+        self.setMinimumWidth(180)
+        self.setStyleSheet(
+            "QFrame {"
+            "    background: white;"
+            "    border-radius: 12px;"
+            "    border-left: 4px solid " + self.color + ";"
+            "    padding: 15px;"
+            "}"
+        )
         
-        # Layout setup
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(15)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 15, 18, 15)
+        layout.setSpacing(8)
         
-        # Left section - Icon and Value
-        left_layout = QVBoxLayout()
-        left_layout.setSpacing(10)
+        # Icon
+        self.icon_label = QLabel(self.icon)
+        self.icon_label.setFont(QFont("Segoe UI Emoji", 24))
+        self.icon_label.setStyleSheet("background: transparent; color: #1e293b;")
+        self.icon_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        layout.addWidget(self.icon_label)
         
-        # Icon with background
-        icon_label = QLabel(icon)
-        icon_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 24px;
-                padding: 10px;
-                background: {color}20;
-                border-radius: 8px;
-                qproperty-alignment: AlignCenter;
-            }}
-        """)
-        icon_label.setFixedSize(48, 48)
-        left_layout.addWidget(icon_label)
+        # Title
+        self.title_label = QLabel(self.title)
+        self.title_label.setFont(QFont("Segoe UI", 11, QFont.DemiBold))
+        self.title_label.setStyleSheet("color: #6b7280; background: transparent;")
+        self.title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        layout.addWidget(self.title_label)
         
         # Value
-        value_label = QLabel(str(value))
-        value_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 24px;
-                font-weight: bold;
-                color: {color};
-            }}
-        """)
-        value_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        left_layout.addWidget(value_label)
+        self.value_label = QLabel(str(self.value))
+        self.value_label.setFont(QFont("Segoe UI", 28, QFont.Bold))
+        self.value_label.setStyleSheet("color: " + self.color + "; background: transparent;")
+        self.value_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        layout.addWidget(self.value_label)
         
-        layout.addLayout(left_layout)
-        
-        # Right section - Title
-        title_label = QLabel(title)
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #6b7280;
-                font-size: 14px;
-                font-weight: 500;
-            }
-        """)
-        title_label.setWordWrap(True)
-        layout.addWidget(title_label)
-        
-        # Set size policy
-        self.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Fixed
-        )
-        self.setFixedHeight(120)
+        layout.addStretch()
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    
+    def update_value(self, new_value):
+        """Update the value displayed on the card."""
+        self.value = new_value
+        if self.value_label:
+            self.value_label.setText(str(new_value))
