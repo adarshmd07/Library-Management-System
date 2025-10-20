@@ -18,9 +18,14 @@ class StyleManager:
         widget.setStyleSheet(f"""
             /* Base Styles for all QWidgets */
             QWidget {{
-                font-family: 'Segoe UI', Arial, sans-serif;
+                font-family: 'Segoe UI', 'Segoe UI Emoji', 'Apple Color Emoji', Arial, sans-serif;
                 font-size: 14px; /* Default font size */
                 color: {Config.DARK_COLOR}; /* Use dark color from config */
+            }}
+            
+            /* Emoji and Icon Support */
+            QLabel {{
+                font-family: 'Segoe UI', 'Segoe UI Emoji', 'Apple Color Emoji', Arial, sans-serif;
             }}
             
             /* Context Menu Styling (Right-click menus) */

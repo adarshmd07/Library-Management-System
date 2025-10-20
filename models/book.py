@@ -126,33 +126,22 @@ class Book:
                 return False, "Failed to create book"
     
     @classmethod
-    def find_by_id(cls, book_id):
+    def find_by_id(cls, transaction_id):
         """
-        Find a book by ID.
-        
-        Args:
-            book_id (int): Book ID
-            
-        Returns:
-            Book or None: Book object if found, None otherwise
+        Find a transaction by ID.
         """
-        book_data = get_db().fetch_one(
-            "SELECT id, title, author, isbn, genre, publication_year, "
-            "total_copies, available_copies, image_path FROM books WHERE id = %s",
-            (book_id,)
+        transaction_data = get_db().fetch_one(
+            "SELECT id, book_id, user_id, loan_date, return_date FROM loans WHERE id = %s",
+            (transaction_id,)
         )
         
-        if book_data:
+        if transaction_data:
             return cls(
-                book_id=book_data[0],
-                title=book_data[1],
-                author=book_data[2],
-                isbn=book_data[3],
-                genre=book_data[4],
-                publication_year=book_data[5],
-                total_copies=book_data[6],
-                available_copies=book_data[7],
-                image_path=book_data[8]
+                transaction_id=transaction_data[0],
+                book_id=transaction_data[1],
+                user_id=transaction_data[2],
+                loan_date=transaction_data[3],  # This might be a date object from database
+                return_date=transaction_data[4]  # This might be a date object from database
             )
         return None
     

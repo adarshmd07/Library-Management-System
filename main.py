@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from PySide6.QtWidgets import QApplication, QStackedWidget, QMessageBox
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QFontDatabase
 from PySide6.QtCore import Qt
 from screens.auth.welcome import WelcomeScreen  
 from screens.auth.login import LoginScreen
