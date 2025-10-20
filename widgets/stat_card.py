@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QSizePolicy
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-
+    
 class StatCard(QFrame):
     """Enhanced stat card widget for displaying statistics with icon, title, and value."""
     
