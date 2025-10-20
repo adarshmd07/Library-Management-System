@@ -549,13 +549,11 @@ class LibrarianDashboard(QWidget):
             # Get books data
             books = Book.get_all()
             total_books = len(books)
-            print(f"Loaded {total_books} books")  # Debug print
             has_books = total_books > 0
 
             # Get users data
             users = User.get_all()
             total_users = len(users)
-            print(f"Loaded {total_users} users")  # Debug print
             has_users = total_users > 0
 
             # Get loans data
@@ -563,14 +561,12 @@ class LibrarianDashboard(QWidget):
             all_loans = len(loans)
             active_loans = len([t for t in loans if not t.return_date])
             overdue_loans = len([t for t in loans if t.is_overdue()])
-            print(f"Loaded {all_loans} loans ({active_loans} active, {overdue_loans} overdue)")  # Fixed quote
             has_loans = all_loans > 0
 
             # Calculate availability
             total_copies = sum(getattr(b, 'total_copies', 0) for b in books)
             available_copies = sum(getattr(b, 'available_copies', 0) for b in books)
             avail_rate = round((available_copies/total_copies*100) if total_copies>0 else 0, 1)
-            print(f"Availability: {available_copies}/{total_copies} ({avail_rate}%)")  # Debug print
 
         except Exception as e:
             print(f"Error fetching report data: {e}")
@@ -683,6 +679,9 @@ class LibrarianDashboard(QWidget):
             # Ensure value is never None and is properly formatted
             if value is None:
                 formatted_value = "0"
+            elif isinstance(value, str) and '%' in value:
+                # Handle percentage strings like "80.5 %"
+                formatted_value = value.replace(' ', '')  # Remove space before %
             elif isinstance(value, (int, float)):
                 formatted_value = f"{value:,}"  # Add thousands separator
             else:
@@ -695,43 +694,53 @@ class LibrarianDashboard(QWidget):
                     background: white;
                     border-radius: 12px;
                     border-left: 4px solid {color};
-                    padding: 15px;
-                    min-height: 120px;
-                    max-height: 140px;
                 }}
             """)
             
+            # Set minimum size to prevent collapsing
+            card.setMinimumHeight(140)
+            card.setMinimumWidth(200)
+            
             # Layout
             layout = QVBoxLayout(card)
-            layout.setContentsMargins(18, 15, 18, 15)
-            layout.setSpacing(8)
+            layout.setContentsMargins(20, 18, 20, 18)
+            layout.setSpacing(10)
             
             # Icon
             icon_label = QLabel(icon)
-            icon_label.setFont(QFont("Segoe UI", 24))
+            icon_label.setFont(QFont("Segoe UI Emoji", 28))
             icon_label.setStyleSheet(f"color: {color}; background: transparent;")
+            icon_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             layout.addWidget(icon_label)
             
             # Title
             title_label = QLabel(title)
-            title_label.setFont(QFont("Segoe UI", 12))
+            title_label.setFont(QFont("Segoe UI", 13))
             title_label.setStyleSheet("color: #6b7280; background: transparent;")
+            title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            title_label.setWordWrap(False)
             layout.addWidget(title_label)
             
             # Value
             value_label = QLabel(formatted_value)
-            value_label.setFont(QFont("Segoe UI", 28, QFont.Bold))
+            value_label.setFont(QFont("Segoe UI", 32, QFont.Bold))
             value_label.setStyleSheet(f"color: {color}; background: transparent;")
+            value_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            value_label.setWordWrap(False)
             layout.addWidget(value_label)
+            
+            layout.addStretch()
             
             # Set size policies
             card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             
-            print(f"Created stat card - Title: {title}, Value: {formatted_value}")  # Debug print
             return card
 
         except Exception as e:
             print(f"Error creating stat card: {e}")
+            import traceback
+            traceback.print_exc()
+            
             # Return a placeholder card on error
             error_card = QFrame()
             error_card.setStyleSheet("""
@@ -740,11 +749,14 @@ class LibrarianDashboard(QWidget):
                     border: 1px solid #ef4444;
                     border-radius: 8px;
                     padding: 10px;
+                    min-height: 140px;
+                    min-width: 200px;
                 }
             """)
             error_layout = QVBoxLayout(error_card)
-            error_label = QLabel("Error loading stat")
+            error_label = QLabel(f"Error: {str(e)}")
             error_label.setStyleSheet("color: #dc2626;")
+            error_label.setWordWrap(True)
             error_layout.addWidget(error_label)
             return error_card
 
@@ -1784,15 +1796,10 @@ MOST POPULAR BOOKS
         try:
             self.books_table.setRowCount(0)
             books = Book.get_all()  # Make sure this returns actual book data
-            
-            print(f"Loaded {len(books)} books")  # Debug print
-            
+                        
             for row, book in enumerate(books):
                 self.books_table.insertRow(row)
-                
-                # Print book data for debugging
-                print(f"Book {row}: {vars(book)}")
-                
+                                
                 columns = [
                     str(book.id),
                     book.title,
