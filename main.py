@@ -263,10 +263,9 @@ class LibraryApp:
             if self.current_user and 'username' in self.current_user:
                 self.librarian_dashboard.set_username(self.current_user['username'])
             
-            # Load fresh data
-            self.librarian_dashboard.load_books_data()
-            self.librarian_dashboard.load_users_data()
-            self.librarian_dashboard.load_loans_data()
+            # Refresh data
+            self.librarian_dashboard.refresh_all_tabs()
+            
             self.stack.setCurrentWidget(self.librarian_dashboard)
         except Exception as e:
             print(f"Error switching to librarian dashboard: {e}")
