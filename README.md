@@ -1,37 +1,23 @@
-📘 Library Management System 
-📌 Overview
+📚 Library Management System
+📝 Project Description
+The Library Management System is a desktop application built with Python, PySide6 (Qt GUI Framework), and MySQL. It provides a complete solution for managing library operations, designed for both librarians and readers. The system emphasizes modular architecture, clean UI, and scalability, making it suitable for academic institutions, public libraries, and personal collections.
+🎯 Key Features
+For Librarians
+- Add, update, and delete books
+- Manage library members
+- Issue and return books
+- Track overdue books
+- Generate reports and analytics
+- Secure login-based access
+For Readers
+- View issued books and due dates
+- Check return history
+- Browse book availability
 
-The Library Management System is a full-featured desktop application built using Python, PySide6 (Qt GUI Framework), and MySQL (via mysql.connector).
-It is developed to help both librarians and readers manage and interact with all essential library operations, including:
-
-🟦 Features for Librarians
-
-Adding & managing books
-
-Managing library members (readers)
-
-Issuing books
-
-Returning books
-
-Tracking issued/overdue books
-
-Viewing analytics & insights
-
-Exporting structured reports
-
-Secure login-based access
-
-🟩 Features for Readers (Members)
-
-View their issued books
-
-Check due dates
-
-View return history
-
-Browse book availability 
-
-🚩 Conclusion
-
-The system emphasizes clean UI, smooth workflows, modular architecture, and scalability, making it fit for both academic and real-world use cases.
+⚙️ Tech Stack
+- Python 3.10+
+- PySide6 – GUI framework
+- MySQL – Database backend
+- mysql.connector – Database connectivity
+- JSON – Config storage
+- Custom modules – For models, screens, widgets, and utilities
