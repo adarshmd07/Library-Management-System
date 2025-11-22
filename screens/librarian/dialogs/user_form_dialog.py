@@ -7,7 +7,7 @@ from models.user import User
 
 
 class UserFormDialog(QDialog):
-    """Simplified user form dialog using User model."""
+    """User form dialog with fixed dropdown styling."""
     def __init__(self, parent=None, user_model=None):
         super().__init__(parent)
         self.user_model = user_model
@@ -29,14 +29,69 @@ class UserFormDialog(QDialog):
         self.username_input = QLineEdit()
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.Password)
+        
+        # User type combo box with fixed styling to prevent dark dropdown
         self.user_type_combo = QComboBox()
         self.user_type_combo.addItems(["reader", "librarian"])
+        
+        # Fix dark dropdown issue with explicit white background styling
+        self.user_type_combo.setStyleSheet("""
+            QComboBox {
+                background-color: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
+                color: #1e293b;
+                min-height: 20px;
+            }
+            QComboBox:hover {
+                border: 1px solid #3b82f6;
+            }
+            QComboBox:focus {
+                border: 2px solid #3b82f6;
+                background-color: #ffffff;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #64748b;
+                margin-right: 8px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                selection-background-color: #3b82f6;
+                selection-color: white;
+                color: #1e293b;
+                padding: 4px;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px 12px;
+                border-radius: 4px;
+                min-height: 25px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #eff6ff;
+                color: #1e293b;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #3b82f6;
+                color: white;
+            }
+        """)
 
         StyleManager.style_input_field(self.full_name_input)
         StyleManager.style_input_field(self.email_input)
         StyleManager.style_input_field(self.username_input)
         StyleManager.style_input_field(self.password_input)
-        StyleManager.style_input_field(self.user_type_combo)
 
         layout.addRow("Full Name*:", self.full_name_input)
         layout.addRow("Email*:", self.email_input)

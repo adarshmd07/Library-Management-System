@@ -1,17 +1,26 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QMessageBox, QSizePolicy, QDialog
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QMessageBox, QSizePolicy
 from PySide6.QtCore import Qt
 from styles.style_manager import StyleManager
-from models.user import User
 from screens.librarian.dialogs.user_form_dialog import UserFormDialog
+
+# Import modules
+from modules.add_recs import AddRecordsModule
+from modules.view_recs import ViewRecordsModule
+from modules.update_recs import UpdateRecordsModule
+from modules.delete_recs import DeleteRecordsModule
+from modules.search_recs import SearchRecordsModule
 
 
 class UserTab(QWidget):
-    """Users management tab."""
+    """Users management tab using modular architecture."""
 
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
         self.users_table = None
+        self.all_users = []  # Store all users for filtering
+        self.search_input = None
+        self.setFocusPolicy(Qt.StrongFocus)
         self.setup_ui()
         StyleManager.apply_styles(self)
 
@@ -20,13 +29,23 @@ class UserTab(QWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
-        btn_layout = QHBoxLayout()
+        # Top bar with search and add button
+        top_bar = QHBoxLayout()
+        
+        # Search bar
+        self.search_input = self.parent.create_search_bar("Search users by name, email, username, or type...")
+        self.search_input.textChanged.connect(self.filter_users)
+        top_bar.addWidget(self.search_input)
+        
+        top_bar.addStretch()
+        
+        # Add button
         add_btn = QPushButton("Add New User")
         add_btn.clicked.connect(self.add_user)
         StyleManager.style_primary_button(add_btn)
-        btn_layout.addStretch()
-        btn_layout.addWidget(add_btn)
-        layout.addLayout(btn_layout)
+        top_bar.addWidget(add_btn)
+        
+        layout.addLayout(top_bar)
 
         self.users_table = QTableWidget()
         self.users_table.setColumnCount(6)
@@ -36,63 +55,16 @@ class UserTab(QWidget):
         
         self._style_table_common(self.users_table)
         self.users_table.setColumnWidth(5, 200)
+        self.users_table.setFocusPolicy(Qt.StrongFocus)
         
         layout.addWidget(self._wrap_table_in_frame(self.users_table))
         self.load_users_data()
-
-    def _create_action_cell(self, buttons):
-        """Create action button cell for tables."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
-        layout.setAlignment(Qt.AlignCenter)
-        
-        button_width = 85 if len(buttons) == 1 else 58 if len(buttons) == 2 else 40
-        
-        for button in buttons:
-            button.setFixedSize(button_width, 28)
-            if "Delete" in button.text():
-                button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #dc2626;
-                        color: white;
-                        border: none;
-                        border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
-                        padding: 2px 4px;
-                        margin: 0px;
-                    }
-                    QPushButton:hover {
-                        background-color: #b91c1c;
-                    }
-                """)
-            elif "Edit" in button.text():
-                button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #2563eb;
-                        color: white;
-                        border: none;
-                        border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
-                        padding: 2px 4px;
-                        margin: 0px;
-                    }
-                    QPushButton:hover {
-                        background-color: #1e40af;
-                    }
-                """)
-            layout.addWidget(button)
-        
-        container.setFixedWidth(95 if len(buttons) == 1 else 130 if len(buttons) == 2 else 140)
-        return container
 
     def _wrap_table_in_frame(self, table):
         """Wrap table in a styled frame."""
         frame = QFrame()
         frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        frame.setFocusPolicy(Qt.StrongFocus)
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -145,14 +117,24 @@ class UserTab(QWidget):
             }
         """)
 
-    def load_users_data(self):
-        """Load users data using User model."""
+    def filter_users(self):
+        """Filter users based on search input using SearchRecordsModule."""
+        if not self.search_input:
+            return
+            
+        search_text = self.search_input.text()
+        
+        # Use search module to filter users
+        filtered_users = SearchRecordsModule.search_users(self.all_users, search_text)
+        self.display_users(filtered_users)
+
+    def display_users(self, users):
+        """Display users in the table."""
         if not self.users_table:
             return
             
         try:
             self.users_table.setRowCount(0)
-            users = User.get_all()
             
             for row_idx, user in enumerate(users):
                 self.users_table.insertRow(row_idx)
@@ -176,65 +158,69 @@ class UserTab(QWidget):
                 edit_btn.clicked.connect(lambda _, u=user: self.edit_user(u))
                 delete_btn.clicked.connect(lambda _, u=user: self.delete_user(u))
 
-                cell = self._create_action_cell([edit_btn, delete_btn])
+                # Use centralized method from parent dashboard
+                cell = self.parent.create_action_cell([edit_btn, delete_btn])
                 self.users_table.setCellWidget(row_idx, 5, cell)
+        except Exception as e:
+            print(f"Error displaying users: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def load_users_data(self):
+        """Load users data using ViewRecordsModule."""
+        try:
+            # Use view module to get all users
+            success, result = ViewRecordsModule.get_all_users()
+            
+            if success:
+                self.all_users = result
+                self.display_users(self.all_users)
+            else:
+                QMessageBox.warning(self, "Error", result)
+                
         except Exception as e:
             print(f"Error loading users data: {e}")
             QMessageBox.warning(self, "Error", f"Failed to load users: {str(e)}")
 
     def add_user(self):
-        """Add new user using User model."""
-        dialog = UserFormDialog(self.parent)
-        if dialog.exec() == QDialog.Accepted:
-            user = dialog.get_user_model()
-            if user:
-                try:
-                    success, result = user.save()
-                    if success:
-                        QMessageBox.information(self, "Success", "User added successfully!")
-                        self.load_users_data()
-                    else:
-                        QMessageBox.critical(self, "Error", result)
-                except Exception as e:
-                    QMessageBox.critical(self, "Error", f"Failed to add user: {str(e)}")
+        """Add new user using AddRecordsModule."""
+        # Use add module to add user
+        success, message, user = AddRecordsModule.add_user(self.parent, UserFormDialog)
+        
+        if success and user:
+            AddRecordsModule.show_add_result(self, success, message)
+            self.load_users_data()
+        elif message != "Operation cancelled":
+            AddRecordsModule.show_add_result(self, success, message)
 
     def edit_user(self, user):
-        """Edit existing user using User model."""
-        dialog = UserFormDialog(self.parent, user)
-        if dialog.exec() == QDialog.Accepted:
-            updated_user = dialog.get_user_model()
-            if updated_user:
-                try:
-                    success, result = updated_user.save()
-                    if success:
-                        QMessageBox.information(self, "Success", "User updated successfully!")
-                        self.load_users_data()
-                    else:
-                        QMessageBox.critical(self, "Error", result)
-                except Exception as e:
-                    QMessageBox.critical(self, "Error", f"Failed to update user: {str(e)}")
+        """Edit existing user using UpdateRecordsModule."""
+        # Use update module to edit user
+        success, message, updated_user = UpdateRecordsModule.update_user(
+            self.parent, user, UserFormDialog
+        )
+        
+        if success and updated_user:
+            UpdateRecordsModule.show_update_result(self, success, message)
+            self.load_users_data()
+        elif message != "Operation cancelled":
+            UpdateRecordsModule.show_update_result(self, success, message)
 
     def delete_user(self, user):
-        """Delete user using User model."""
-        reply = QMessageBox.question(
-            self, "Confirm Delete", 
-            f'Are you sure you want to delete user "{user.username}"?\n\nThis action cannot be undone.', 
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            try:
-                success, message = user.delete()
-                if success:
-                    QMessageBox.information(self, "Success", message)
-                    self.load_users_data()
-                    # Refresh loans tab if needed
-                    if hasattr(self.parent, 'loan_tab'):
-                        self.parent.loan_tab.load_loans_data()
-                else:
-                    QMessageBox.warning(self, "Cannot Delete", message)
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to delete user: {str(e)}")
+        """Delete user using DeleteRecordsModule."""
+        # Use delete module to delete user
+        success, message = DeleteRecordsModule.delete_user(self, user)
+        
+        if success:
+            DeleteRecordsModule.show_delete_result(self, success, message)
+            self.load_users_data()
+            # Refresh loans tab if needed
+            if hasattr(self.parent, 'loan_tab'):
+                self.parent.loan_tab.load_loans_data()
+        elif message != "Operation cancelled":
+            DeleteRecordsModule.show_delete_result(self, success, message)
 
     def cleanup(self):
         """Clean up resources."""
         self.users_table = None
+        self.all_users = []

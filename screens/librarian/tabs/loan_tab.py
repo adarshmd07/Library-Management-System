@@ -2,18 +2,24 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QT
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from styles.style_manager import StyleManager
-from models.transaction import Transaction
-from models.book import Book
-from models.user import User
+
+# Import modules
+from modules.view_recs import ViewRecordsModule
+from modules.update_recs import UpdateRecordsModule
+from modules.delete_recs import DeleteRecordsModule
+from modules.search_recs import SearchRecordsModule
 
 
 class LoanTab(QWidget):
-    """Loans management tab."""
+    """Loans management tab using modular architecture."""
 
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
         self.loans_table = None
+        self.all_loans = []  # Store all loans for filtering
+        self.search_input = None
+        self.setFocusPolicy(Qt.StrongFocus)
         self.setup_ui()
         StyleManager.apply_styles(self)
 
@@ -22,13 +28,23 @@ class LoanTab(QWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
-        btn_layout = QHBoxLayout()
+        # Top bar with search and mark returned button
+        top_bar = QHBoxLayout()
+        
+        # Search bar
+        self.search_input = self.parent.create_search_bar("Search loans by book title, borrower, or status...")
+        self.search_input.textChanged.connect(self.filter_loans)
+        top_bar.addWidget(self.search_input)
+        
+        top_bar.addStretch()
+        
+        # Mark returned button
         self.mark_returned_btn = QPushButton("Mark Selected as Returned")
         self.mark_returned_btn.clicked.connect(self.mark_loan_returned)
         StyleManager.style_primary_button(self.mark_returned_btn)
-        btn_layout.addStretch()
-        btn_layout.addWidget(self.mark_returned_btn)
-        layout.addLayout(btn_layout)
+        top_bar.addWidget(self.mark_returned_btn)
+        
+        layout.addLayout(top_bar)
 
         self.loans_table = QTableWidget()
         self.loans_table.setColumnCount(7)
@@ -38,63 +54,16 @@ class LoanTab(QWidget):
         
         self._style_table_common(self.loans_table)
         self.loans_table.setColumnWidth(6, 200)
+        self.loans_table.setFocusPolicy(Qt.StrongFocus)
         
         layout.addWidget(self._wrap_table_in_frame(self.loans_table))
         self.load_loans_data()
-
-    def _create_action_cell(self, buttons):
-        """Create action button cell for tables."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
-        layout.setAlignment(Qt.AlignCenter)
-        
-        button_width = 85 if len(buttons) == 1 else 58 if len(buttons) == 2 else 40
-        
-        for button in buttons:
-            button.setFixedSize(button_width, 28)
-            if "Delete" in button.text():
-                button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #dc2626;
-                        color: white;
-                        border: none;
-                        border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
-                        padding: 2px 4px;
-                        margin: 0px;
-                    }
-                    QPushButton:hover {
-                        background-color: #b91c1c;
-                    }
-                """)
-            elif "Return" in button.text():
-                button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #16a34a;
-                        color: white;
-                        border: none;
-                        border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
-                        padding: 2px 4px;
-                        margin: 0px;
-                    }
-                    QPushButton:hover {
-                        background-color: #15803d;
-                    }
-                """)
-            layout.addWidget(button)
-        
-        container.setFixedWidth(95 if len(buttons) == 1 else 130 if len(buttons) == 2 else 140)
-        return container
 
     def _wrap_table_in_frame(self, table):
         """Wrap table in a styled frame."""
         frame = QFrame()
         frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        frame.setFocusPolicy(Qt.StrongFocus)
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -147,14 +116,24 @@ class LoanTab(QWidget):
             }
         """)
 
-    def load_loans_data(self):
-        """Load loans data using Transaction model."""
+    def filter_loans(self):
+        """Filter loans based on search input using SearchRecordsModule."""
+        if not self.search_input:
+            return
+            
+        search_text = self.search_input.text()
+        
+        # Use search module to filter loans
+        filtered_loans = SearchRecordsModule.search_loans(self.all_loans, search_text)
+        self.display_loans(filtered_loans)
+
+    def display_loans(self, loans):
+        """Display loans in the table."""
         if not self.loans_table:
             return
             
         try:
             self.loans_table.setRowCount(0)
-            loans = Transaction.get_all_loans()
             
             for row_idx, loan in enumerate(loans):
                 self.loans_table.insertRow(row_idx)
@@ -195,14 +174,32 @@ class LoanTab(QWidget):
                 del_btn.clicked.connect(lambda checked, l=loan: self.delete_loan(l))
                 buttons.append(del_btn)
 
-                cell = self._create_action_cell(buttons)
+                # Use centralized method from parent dashboard
+                cell = self.parent.create_action_cell(buttons)
                 self.loans_table.setCellWidget(row_idx, 6, cell)
+        except Exception as e:
+            print(f"Error displaying loans: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def load_loans_data(self):
+        """Load loans data using ViewRecordsModule."""
+        try:
+            # Use view module to get all loans
+            success, result = ViewRecordsModule.get_all_loans()
+            
+            if success:
+                self.all_loans = result
+                self.display_loans(self.all_loans)
+            else:
+                QMessageBox.warning(self, "Error", result)
+                
         except Exception as e:
             print(f"Error loading loans data: {e}")
             QMessageBox.warning(self, "Error", f"Failed to load loans: {str(e)}")
 
     def mark_loan_returned(self, loan=None):
-        """Mark loan as returned using Transaction model."""
+        """Mark loan as returned using UpdateRecordsModule."""
         try:
             if loan is None:
                 selected_rows = self.loans_table.selectionModel().selectedRows()
@@ -210,7 +207,11 @@ class LoanTab(QWidget):
                     QMessageBox.warning(self, "No Selection", "Please select a loan to mark as returned.")
                     return
                 loan_id = int(self.loans_table.item(selected_rows[0].row(), 0).text())
-                loan = Transaction.find_by_id(loan_id)
+                # Use view module to get loan by ID
+                success, loan = ViewRecordsModule.get_loan_by_id(loan_id)
+                if not success:
+                    QMessageBox.warning(self, "Error", loan)
+                    return
             
             if not loan:
                 QMessageBox.warning(self, "Error", "Loan not found.")
@@ -221,55 +222,37 @@ class LoanTab(QWidget):
                 return
             
             book = loan.get_book()
-            reply = QMessageBox.question(
-                self, "Confirm Return", 
-                f'Mark "{book.title if book else "this book"}" as returned?', 
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-            )
-            if reply == QMessageBox.Yes:
-                success, message = loan.return_book()
+            book_title = book.title if book else "this book"
+            
+            # Confirm return using update module
+            if UpdateRecordsModule.confirm_return(self, book_title):
+                # Use update module to return book
+                success, message = UpdateRecordsModule.return_book(loan)
+                
                 if success:
-                    QMessageBox.information(self, "Success", message)
+                    UpdateRecordsModule.show_update_result(self, success, message)
                     self.load_loans_data()
                     # Refresh books tab if needed
                     if hasattr(self.parent, 'book_tab'):
                         self.parent.book_tab.load_books_data()
                 else:
-                    QMessageBox.critical(self, "Error", message)
+                    UpdateRecordsModule.show_update_result(self, success, message)
+                    
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
 
     def delete_loan(self, loan):
-        """Delete loan using Transaction model."""
-        try:
-            book = loan.get_book()
-            user = loan.get_user()
-            
-            reply = QMessageBox.question(
-                self, "Confirm Delete", 
-                f'Delete loan record for "{book.title if book else "Unknown Book"}" '
-                f'borrowed by {user.username if user else "Unknown User"}?\n\nThis action cannot be undone.', 
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-            )
-            if reply == QMessageBox.Yes:
-                if not loan.return_date:
-                    warning_reply = QMessageBox.warning(
-                        self, "Active Loan Warning", 
-                        "This loan is still active (not returned). Deleting it will not update book availability.\n\nProceed anyway?", 
-                        QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-                    )
-                    if warning_reply == QMessageBox.No:
-                        return
-                
-                success, message = loan.delete()
-                if success:
-                    QMessageBox.information(self, "Success", message)
-                    self.load_loans_data()
-                else:
-                    QMessageBox.critical(self, "Error", message)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
+        """Delete loan using DeleteRecordsModule."""
+        # Use delete module to delete loan
+        success, message = DeleteRecordsModule.delete_loan(self, loan)
+        
+        if success:
+            DeleteRecordsModule.show_delete_result(self, success, message)
+            self.load_loans_data()
+        elif message != "Operation cancelled":
+            DeleteRecordsModule.show_delete_result(self, success, message)
 
     def cleanup(self):
         """Clean up resources."""
         self.loans_table = None
+        self.all_loans = []

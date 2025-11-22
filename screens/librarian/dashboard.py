@@ -1,5 +1,6 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QTabWidget, QFrame, QSizePolicy
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QTabWidget, QFrame, QSizePolicy, QPushButton
 from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt
 from config import Config
 from styles.style_manager import StyleManager
 from widgets.navigation import LibrarianNavigationBar
@@ -27,8 +28,8 @@ class LibrarianDashboard(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)  # Reduced margins for more space
-        layout.setSpacing(15)  # Reduced spacing
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
 
         # Header with welcome and navigation in one line
         header_layout = QHBoxLayout()
@@ -117,17 +118,122 @@ class LibrarianDashboard(QWidget):
         # Ensure tabs expand to use all available space
         self.tab_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
+    @staticmethod
+    def create_search_bar(placeholder_text="Search..."):
+        """Create a standardized search bar for tabs."""
+        from PySide6.QtWidgets import QLineEdit
+        from PySide6.QtCore import Qt
+        
+        search_input = QLineEdit()
+        search_input.setPlaceholderText(placeholder_text)
+        search_input.setFixedHeight(36)
+        search_input.setFixedWidth(400)
+        search_input.setFocusPolicy(Qt.StrongFocus)
+        search_input.setAttribute(Qt.WA_MacShowFocusRect, False)
+        search_input.setStyleSheet("""
+            QLineEdit {
+                background-color: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 13px;
+                color: #1e293b;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3b82f6;
+                background-color: #ffffff;
+            }
+            QLineEdit::placeholder {
+                color: #94a3b8;
+            }
+        """)
+        return search_input
+
+    @staticmethod
+    def create_action_cell(buttons):
+        """Create action button cell for tables - centralized method."""
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(8, 3, 8, 3)
+        layout.setSpacing(10)
+        layout.setAlignment(Qt.AlignCenter)
+        
+        # Set button width based on number of buttons
+        if len(buttons) == 1:
+            button_width = 75
+            container_width = 95
+        elif len(buttons) == 2:
+            button_width = 62
+            container_width = 150
+        else:
+            button_width = 48
+            container_width = 165
+        
+        for button in buttons:
+            button.setFixedSize(button_width, 30)
+            button_text = button.text()
+            
+            if "Delete" in button_text:
+                button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #dc2626;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        padding: 0px;
+                        margin: 0px;
+                    }
+                    QPushButton:hover {
+                        background-color: #b91c1c;
+                    }
+                """)
+            elif "Edit" in button_text:
+                button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #2563eb;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        padding: 0px;
+                        margin: 0px;
+                    }
+                    QPushButton:hover {
+                        background-color: #1e40af;
+                    }
+                """)
+            elif "Return" in button_text:
+                button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #16a34a;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        padding: 0px;
+                        margin: 0px;
+                    }
+                    QPushButton:hover {
+                        background-color: #15803d;
+                    }
+                """)
+            layout.addWidget(button)
+        
+        container.setFixedWidth(container_width)
+        return container
+
     def refresh_all_tabs(self):
         """Refresh data in all tabs."""
-        # Call the refresh methods on the tab instances, not on self
         if hasattr(self, 'book_tab'):
             self.book_tab.load_books_data()
         if hasattr(self, 'user_tab'):
             self.user_tab.load_users_data()
         if hasattr(self, 'loan_tab'):
             self.loan_tab.load_loans_data()
-        if hasattr(self, 'report_tab'):
-            self.report_tab.refresh_reports()
 
     def __del__(self):
         """Cleanup method."""

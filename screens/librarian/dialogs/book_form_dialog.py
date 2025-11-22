@@ -1,7 +1,6 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QTableWidget, QTableWidgetItem, QFrame, QFormLayout, 
-    QLineEdit, QSpinBox, QMessageBox, QFileDialog
+    QFormLayout, QLineEdit, QSpinBox, QMessageBox, QFileDialog, QFrame
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPixmap
@@ -11,7 +10,7 @@ import os
 
 
 class BookFormDialog(QDialog):
-    """Simplified book form dialog using Book model."""
+    """Book form dialog."""
     def __init__(self, parent=None, book_model=None):
         super().__init__(parent)
         self.book_model = book_model

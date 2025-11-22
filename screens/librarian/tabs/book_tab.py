@@ -1,17 +1,26 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QMessageBox, QSizePolicy, QDialog
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QMessageBox, QSizePolicy
 from PySide6.QtCore import Qt
 from styles.style_manager import StyleManager
-from models.book import Book
 from screens.librarian.dialogs.book_form_dialog import BookFormDialog
+
+# Import modules
+from modules.add_recs import AddRecordsModule
+from modules.view_recs import ViewRecordsModule
+from modules.update_recs import UpdateRecordsModule
+from modules.delete_recs import DeleteRecordsModule
+from modules.search_recs import SearchRecordsModule
 
 
 class BookTab(QWidget):
-    """Books management tab."""
+    """Books management tab using modular architecture."""
 
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
         self.books_table = None
+        self.all_books = []  # Store all books for filtering
+        self.search_input = None
+        self.setFocusPolicy(Qt.StrongFocus)
         self.setup_ui()
         StyleManager.apply_styles(self)
 
@@ -20,13 +29,23 @@ class BookTab(QWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
-        btn_layout = QHBoxLayout()
+        # Top bar with search and add button
+        top_bar = QHBoxLayout()
+        
+        # Search bar
+        self.search_input = self.parent.create_search_bar("Search books by title, author, genre, or year...")
+        self.search_input.textChanged.connect(self.filter_books)
+        top_bar.addWidget(self.search_input)
+        
+        top_bar.addStretch()
+        
+        # Add button
         add_btn = QPushButton("Add New Book")
         add_btn.clicked.connect(self.add_book)
         StyleManager.style_primary_button(add_btn)
-        btn_layout.addStretch()
-        btn_layout.addWidget(add_btn)
-        layout.addLayout(btn_layout)
+        top_bar.addWidget(add_btn)
+        
+        layout.addLayout(top_bar)
 
         self.books_table = QTableWidget()
         self.books_table.setColumnCount(7)
@@ -36,63 +55,16 @@ class BookTab(QWidget):
         
         self._style_table_common(self.books_table)
         self.books_table.setColumnWidth(6, 200)
+        self.books_table.setFocusPolicy(Qt.StrongFocus)
         
         layout.addWidget(self._wrap_table_in_frame(self.books_table))
         self.load_books_data()
-
-    def _create_action_cell(self, buttons):
-        """Create action button cell for tables."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
-        layout.setAlignment(Qt.AlignCenter)
-        
-        button_width = 85 if len(buttons) == 1 else 58 if len(buttons) == 2 else 40
-        
-        for button in buttons:
-            button.setFixedSize(button_width, 28)
-            if "Delete" in button.text():
-                button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #dc2626;
-                        color: white;
-                        border: none;
-                        border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
-                        padding: 2px 4px;
-                        margin: 0px;
-                    }
-                    QPushButton:hover {
-                        background-color: #b91c1c;
-                    }
-                """)
-            elif "Edit" in button.text():
-                button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #2563eb;
-                        color: white;
-                        border: none;
-                        border-radius: 3px;
-                        font-size: 11px;
-                        font-weight: bold;
-                        padding: 2px 4px;
-                        margin: 0px;
-                    }
-                    QPushButton:hover {
-                        background-color: #1e40af;
-                    }
-                """)
-            layout.addWidget(button)
-        
-        container.setFixedWidth(95 if len(buttons) == 1 else 130 if len(buttons) == 2 else 140)
-        return container
 
     def _wrap_table_in_frame(self, table):
         """Wrap table in a styled frame."""
         frame = QFrame()
         frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        frame.setFocusPolicy(Qt.StrongFocus)
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -145,14 +117,24 @@ class BookTab(QWidget):
             }
         """)
 
-    def load_books_data(self):
-        """Load books data using Book model."""
+    def filter_books(self):
+        """Filter books based on search input using SearchRecordsModule."""
+        if not self.search_input:
+            return
+            
+        search_text = self.search_input.text()
+        
+        # Use search module to filter books
+        filtered_books = SearchRecordsModule.search_books(self.all_books, search_text)
+        self.display_books(filtered_books)
+
+    def display_books(self, books):
+        """Display books in the table."""
         if not self.books_table:
             return
             
         try:
             self.books_table.setRowCount(0)
-            books = Book.get_all()
                         
             for row, book in enumerate(books):
                 self.books_table.insertRow(row)
@@ -177,9 +159,27 @@ class BookTab(QWidget):
                 edit_btn.clicked.connect(lambda checked, b=book: self.edit_book(b))
                 delete_btn.clicked.connect(lambda checked, b=book: self.delete_book(b))
                 
-                action_cell = self._create_action_cell([edit_btn, delete_btn])
+                # Use centralized method from parent dashboard
+                action_cell = self.parent.create_action_cell([edit_btn, delete_btn])
                 self.books_table.setCellWidget(row, 6, action_cell)
 
+        except Exception as e:
+            print(f"Error displaying books: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def load_books_data(self):
+        """Load books data using ViewRecordsModule."""
+        try:
+            # Use view module to get all books
+            success, result = ViewRecordsModule.get_all_books()
+            
+            if success:
+                self.all_books = result
+                self.display_books(self.all_books)
+            else:
+                QMessageBox.warning(self, "Error", result)
+                
         except Exception as e:
             print(f"Error loading books data: {e}")
             import traceback
@@ -187,61 +187,44 @@ class BookTab(QWidget):
             QMessageBox.warning(self, "Error", f"Failed to load books: {str(e)}")
 
     def add_book(self):
-        """Add new book using Book model."""
-        dialog = BookFormDialog(self.parent)
-        if dialog.exec() == QDialog.Accepted:
-            book = dialog.get_book_model()
-            if book:
-                try:
-                    success, result = book.save()
-                    if success:
-                        if hasattr(book, '_temp_image_path'):
-                            book.save_image(book._temp_image_path)
-                        
-                        QMessageBox.information(self, "Success", "Book added successfully!")
-                        self.load_books_data()
-                    else:
-                        QMessageBox.critical(self, "Error", result)
-                except Exception as e:
-                    QMessageBox.critical(self, "Error", f"Failed to add book: {str(e)}")
+        """Add new book using AddRecordsModule."""
+        # Use add module to add book
+        success, message, book = AddRecordsModule.add_book(self.parent, BookFormDialog)
+        
+        if success and book:
+            AddRecordsModule.show_add_result(self, success, message)
+            self.load_books_data()
+        elif message != "Operation cancelled":
+            AddRecordsModule.show_add_result(self, success, message)
 
     def edit_book(self, book):
-        """Edit existing book using Book model."""
-        dialog = BookFormDialog(self.parent, book)
-        if dialog.exec() == QDialog.Accepted:
-            updated_book = dialog.get_book_model()
-            if updated_book:
-                try:
-                    success, result = updated_book.save()
-                    if success:
-                        QMessageBox.information(self, "Success", "Book updated successfully!")
-                        self.load_books_data()
-                    else:
-                        QMessageBox.critical(self, "Error", result)
-                except Exception as e:
-                    QMessageBox.critical(self, "Error", f"Failed to update book: {str(e)}")
+        """Edit existing book using UpdateRecordsModule."""
+        # Use update module to edit book
+        success, message, updated_book = UpdateRecordsModule.update_book(
+            self.parent, book, BookFormDialog
+        )
+        
+        if success and updated_book:
+            UpdateRecordsModule.show_update_result(self, success, message)
+            self.load_books_data()
+        elif message != "Operation cancelled":
+            UpdateRecordsModule.show_update_result(self, success, message)
 
     def delete_book(self, book):
-        """Delete book using Book model."""
-        reply = QMessageBox.question(
-            self, "Confirm Delete", 
-            f'Are you sure you want to delete "{book.title}"?\n\nThis action cannot be undone.', 
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            try:
-                success, message = book.delete()
-                if success:
-                    QMessageBox.information(self, "Success", message)
-                    self.load_books_data()
-                    # Refresh loans tab if needed
-                    if hasattr(self.parent, 'loan_tab'):
-                        self.parent.loan_tab.load_loans_data()
-                else:
-                    QMessageBox.warning(self, "Cannot Delete", message)
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to delete book: {str(e)}")
+        """Delete book using DeleteRecordsModule."""
+        # Use delete module to delete book
+        success, message = DeleteRecordsModule.delete_book(self, book)
+        
+        if success:
+            DeleteRecordsModule.show_delete_result(self, success, message)
+            self.load_books_data()
+            # Refresh loans tab if needed
+            if hasattr(self.parent, 'loan_tab'):
+                self.parent.loan_tab.load_loans_data()
+        elif message != "Operation cancelled":
+            DeleteRecordsModule.show_delete_result(self, success, message)
 
     def cleanup(self):
         """Clean up resources."""
         self.books_table = None
+        self.all_books = []
