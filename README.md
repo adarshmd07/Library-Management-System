@@ -32,6 +32,6 @@ View return history
 
 Browse book availability 
 
-Conclusion
+🚩 Conclusion
 
 The system emphasizes clean UI, smooth workflows, modular architecture, and scalability, making it fit for both academic and real-world use cases.
