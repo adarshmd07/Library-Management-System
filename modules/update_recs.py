@@ -1,8 +1,3 @@
-"""
-Update Records Module
-Handles updating existing records in the database.
-"""
-
 from PySide6.QtWidgets import QMessageBox, QDialog
 
 
@@ -29,7 +24,6 @@ class UpdateRecordsModule:
                 if updated_book:
                     success, result = updated_book.save()
                     if success:
-                        # Handle image update if temporary image path exists
                         if hasattr(updated_book, '_temp_image_path'):
                             updated_book.save_image(updated_book._temp_image_path)
                         return True, "Book updated successfully!", updated_book
@@ -89,7 +83,7 @@ class UpdateRecordsModule:
     @staticmethod
     def update_loan_status(loan):
         """
-        Update the status of a loan (e.g., check if overdue).
+        Update the status of a loan.
         
         Args:
             loan: The loan transaction to update
@@ -109,7 +103,7 @@ class UpdateRecordsModule:
         
         Args:
             book: The book object to update
-            change: The change in availability (positive to increase, negative to decrease)
+            change: The change in availability
             
         Returns:
             tuple: (success: bool, message: str)

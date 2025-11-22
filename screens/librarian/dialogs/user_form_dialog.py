@@ -7,7 +7,8 @@ from models.user import User
 
 
 class UserFormDialog(QDialog):
-    """User form dialog with fixed dropdown styling."""
+    """Dialog for adding or editing users."""
+    
     def __init__(self, parent=None, user_model=None):
         super().__init__(parent)
         self.user_model = user_model
@@ -20,6 +21,7 @@ class UserFormDialog(QDialog):
         self.resize(500, 400)
 
     def setup_ui(self):
+        """Setup the user interface."""
         layout = QFormLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
@@ -30,11 +32,9 @@ class UserFormDialog(QDialog):
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.Password)
         
-        # User type combo box with fixed styling to prevent dark dropdown
         self.user_type_combo = QComboBox()
         self.user_type_combo.addItems(["reader", "librarian"])
         
-        # Fix dark dropdown issue with explicit white background styling
         self.user_type_combo.setStyleSheet("""
             QComboBox {
                 background-color: white;
@@ -118,7 +118,7 @@ class UserFormDialog(QDialog):
 
     def load_existing_data(self):
         """Load data from User model."""
-        if not self.user_model:
+        if not self.book_model:
             return
             
         self.full_name_input.setText(self.user_model.full_name or "")

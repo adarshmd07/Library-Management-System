@@ -1,14 +1,16 @@
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFrame, QMessageBox, QApplication
+    QPushButton, QFrame, QMessageBox
 )
 from PySide6.QtGui import QPixmap
 from utils import resource_path 
 from models.user import User
-import sys
+
 
 class LoginScreen(QWidget):
+    """Login screen for users and librarians."""
+    
     def __init__(self, app, user_type):
         super().__init__()
         self.app = app
@@ -17,12 +19,11 @@ class LoginScreen(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        # Main layout with background
+        """Setup the user interface."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # Background container with gradient
         background_frame = QFrame()
         background_frame.setStyleSheet("""
             QFrame {
@@ -38,7 +39,6 @@ class LoginScreen(QWidget):
         background_layout.setSpacing(0)
         background_layout.addStretch()
         
-        # Central card
         card = QFrame()
         card.setStyleSheet("""
             QFrame {
@@ -52,12 +52,10 @@ class LoginScreen(QWidget):
         card_layout.setContentsMargins(40, 40, 40, 40)
         card_layout.setSpacing(25)
         
-        # Header section with centered layout
         header_layout = QVBoxLayout()
         header_layout.setSpacing(10)
         header_layout.setAlignment(Qt.AlignCenter)
         
-        # App logo/icon with improved scaling and centering
         icon_container = QWidget()
         icon_layout = QVBoxLayout(icon_container)
         icon_layout.setAlignment(Qt.AlignCenter)
@@ -89,7 +87,6 @@ class LoginScreen(QWidget):
         icon_layout.addWidget(icon_label)
         header_layout.addWidget(icon_container)
         
-        # Title
         title_text = "Reader Login" if self.user_type == "reader" else "Librarian Login"
         title = QLabel(title_text)
         title.setStyleSheet("""
@@ -104,7 +101,6 @@ class LoginScreen(QWidget):
         title.setAlignment(Qt.AlignCenter)
         header_layout.addWidget(title)
         
-        # Subtitle
         subtitle = QLabel("Welcome back! Please sign in to your account")
         subtitle.setStyleSheet("""
             QLabel {
@@ -120,11 +116,9 @@ class LoginScreen(QWidget):
         
         card_layout.addLayout(header_layout)
         
-        # Form section
         form_layout = QVBoxLayout()
         form_layout.setSpacing(20)
         
-        # Username field
         username_container = QVBoxLayout()
         username_container.setSpacing(8)
         
@@ -158,7 +152,6 @@ class LoginScreen(QWidget):
         username_container.addWidget(self.username_input)
         form_layout.addLayout(username_container)
         
-        # Password field
         password_container = QVBoxLayout()
         password_container.setSpacing(8)
         
@@ -193,7 +186,6 @@ class LoginScreen(QWidget):
         password_container.addWidget(self.password_input)
         form_layout.addLayout(password_container)
         
-        # Error label
         self.error_label = QLabel()
         self.error_label.setStyleSheet("""
             QLabel {
@@ -210,11 +202,9 @@ class LoginScreen(QWidget):
         
         card_layout.addLayout(form_layout)
         
-        # Action buttons
         action_layout = QVBoxLayout()
         action_layout.setSpacing(15)
         
-        # Login button
         login_btn = QPushButton("Login")
         login_btn.setStyleSheet("""
             QPushButton {
@@ -241,7 +231,6 @@ class LoginScreen(QWidget):
         login_btn.clicked.connect(self.handle_login)
         action_layout.addWidget(login_btn)
         
-        # Back button
         back_btn = QPushButton("Back to Welcome")
         back_btn.setStyleSheet("""
             QPushButton {
@@ -265,14 +254,11 @@ class LoginScreen(QWidget):
         
         card_layout.addLayout(action_layout)
         
-        # Add card to background
         background_layout.addWidget(card, alignment=Qt.AlignCenter)
         background_layout.addStretch()
         
-        # Add background to main layout
         main_layout.addWidget(background_frame)
         
-        # Enter key triggers login
         self.username_input.returnPressed.connect(self.handle_login)
         self.password_input.returnPressed.connect(self.handle_login)
 
@@ -292,17 +278,14 @@ class LoginScreen(QWidget):
         username = self.username_input.text().strip()
         password = self.password_input.text()
 
-        # Basic validation
         if not username or not password:
             self.show_error("Please enter both username and password.")
             return
 
         try:
-            # First, try demo login for easy testing
             if username == "demo" and password == "demo":
-                # Create mock user data for demo
                 mock_user_data = {
-                    "id": 999,  # Special demo ID
+                    "id": 999,
                     "username": "demo",
                     "full_name": "Demo User",
                     "email": "demo@library.com",
@@ -312,12 +295,10 @@ class LoginScreen(QWidget):
                 self.app.current_user = mock_user_data
                 self.app.user_type = self.user_type
                 
-                # Clear inputs
                 self.username_input.clear()
                 self.password_input.clear()
                 self.hide_error()
                 
-                # Navigate to appropriate dashboard
                 if self.user_type == "reader":
                     self.app.reader_dashboard.set_user_info("Demo User", 999)
                     self.app.switch_to_reader_dashboard()
@@ -332,29 +313,23 @@ class LoginScreen(QWidget):
                 )
                 return
 
-            # Try real authentication with User model
             authenticated_user = User.authenticate(username, password)
             
             if authenticated_user and authenticated_user.user_type == self.user_type:
-                # Successful authentication
                 self.app.current_user = authenticated_user.to_dict()
                 self.app.user_type = self.user_type
                 
-                # Clear inputs
                 self.username_input.clear()
                 self.password_input.clear()
                 self.hide_error()
                 
-                # Navigate to appropriate dashboard
                 if self.user_type == "reader":
-                    # Set user info in reader dashboard
                     self.app.reader_dashboard.set_user_info(
                         authenticated_user.username, 
                         authenticated_user.id
                     )
                     self.app.switch_to_reader_dashboard()
                 else:
-                    # Set user info in librarian dashboard
                     self.app.librarian_dashboard.set_username(authenticated_user.username)
                     self.app.switch_to_librarian_dashboard()
                 
@@ -374,7 +349,6 @@ class LoginScreen(QWidget):
                     
         except Exception as e:
             print(f"Login error: {e}")
-            # If there's a database error, still allow demo login
             if username == "demo" and password == "demo":
                 self.show_error("Database unavailable. Demo mode only.")
             else:
@@ -382,28 +356,3 @@ class LoginScreen(QWidget):
                     "Login failed due to system error.\n\n"
                     "Try 'demo'/'demo' for demonstration mode."
                 )
-
-
-# Demo application class to test the login screen
-class DemoApp:
-    def __init__(self):
-        self.current_user = None
-        self.user_type = None
-        
-    def switch_to_welcome(self):
-        print("Switching to welcome screen")
-        
-    def switch_to_reader_dashboard(self):
-        print("Switching to reader dashboard")
-        
-    def switch_to_librarian_dashboard(self):
-        print("Switching to librarian dashboard")
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    demo_app = DemoApp()
-    login_screen = LoginScreen(demo_app, "reader")
-    login_screen.resize(800, 600)
-    login_screen.show()
-    sys.exit(app.exec())

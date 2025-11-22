@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from PySide6.QtWidgets import QApplication, QStackedWidget, QMessageBox
-from PySide6.QtGui import QIcon, QFontDatabase
+from PySide6.QtGui import QIcon
 from PySide6.QtCore import Qt
 from screens.auth.welcome import WelcomeScreen  
 from screens.auth.login import LoginScreen
@@ -10,8 +10,9 @@ from screens.reader.dashboard import ReaderDashboard
 from screens.librarian.dashboard import LibrarianDashboard
 from config import Config
 from styles.style_manager import StyleManager
-from database import DatabaseManager, get_db_manager, set_db_manager
+from database import get_db_manager, set_db_manager
 import database as db_module
+
 
 class LibraryApp:
     """
@@ -21,22 +22,17 @@ class LibraryApp:
     def __init__(self):
         self.app = QApplication(sys.argv)
         self.current_user = None
-        self.user_type = None  # "reader" or "librarian"
+        self.user_type = None
         self.style_manager = StyleManager()
         
-        # Set application properties for proper taskbar handling
         self.app.setApplicationName("LibraryManagementSystem")
         self.app.setApplicationDisplayName(Config.APP_NAME)
         self.app.setOrganizationName("LibraryManagement")
         self.app.setOrganizationDomain("librarymanagement.com")
         
-        # Set Windows AppUserModelID for proper taskbar icon
         self.set_windows_app_user_model_id()
-        
-        # Set application icon
         self.set_app_icon()
         
-        # Initialize database (with setup dialog if needed)
         if not self.init_database():
             QMessageBox.critical(
                 None,
@@ -54,7 +50,7 @@ class LibraryApp:
             myappid = 'Library.Management.System.1.0'
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
-            pass  # Not on Windows or API not available
+            pass
 
     def set_app_icon(self):
         """Set application icon with fallback options."""
@@ -79,20 +75,16 @@ class LibraryApp:
     def init_database(self):
         """Initialize database and create sample data if needed."""
         try:
-            # Get database manager (will show setup dialog if needed)
             db_manager = get_db_manager()
             
             if not db_manager:
                 return False
             
-            # Set global db_manager using the setter
             set_db_manager(db_manager)
             
-            # Import after setting db_manager
             from models.user import User
             from models.book import Book
             
-            # Check if we need to create sample data
             existing_users = User.get_all()
             if not existing_users or len(existing_users) == 0:
                 print("Creating sample data...")
@@ -112,7 +104,6 @@ class LibraryApp:
         from models.book import Book
         
         try:
-            # Create sample users
             sample_users = [
                 User(username="admin", full_name="Library Administrator", 
                      email="admin@library.com", password="admin123", user_type="librarian"),
@@ -129,7 +120,6 @@ class LibraryApp:
                 else:
                     print(f"Failed to create user {user.username}: {result}")
             
-            # Create sample books
             sample_books = [
                 Book(title="The Python Programming Language", author="Guido van Rossum", 
                      genre="Programming", publication_year=2020, total_copies=3),
@@ -159,22 +149,18 @@ class LibraryApp:
         self.init_screens()
         self.apply_styles()
         
-        # Window settings
         self.stack.setWindowTitle(Config.APP_NAME)
         self.stack.setMinimumSize(1200, 800)
         
-        # Calculate optimal window size
         screen_geometry = self.app.primaryScreen().availableGeometry()
         width = int(screen_geometry.width() * 0.9)
         height = int(screen_geometry.height() * 0.85)
         self.stack.resize(width, height)
         
-        # Center the window on screen
         x = (screen_geometry.width() - width) // 2
         y = (screen_geometry.height() - height) // 2
         self.stack.move(x, y)
         
-        # Set window flags for proper behavior
         self.stack.setWindowFlags(
             Qt.Window |
             Qt.CustomizeWindowHint |
@@ -203,7 +189,6 @@ class LibraryApp:
         self.reader_dashboard = ReaderDashboard(self)
         self.librarian_dashboard = LibrarianDashboard(self)
         
-        # Add screens to stack
         screens = [
             self.welcome_screen,
             self.login_screen,
@@ -217,7 +202,6 @@ class LibraryApp:
         for screen in screens:
             self.stack.addWidget(screen)
 
-    # Navigation methods with enhanced model integration
     def switch_to_welcome(self):
         """Switch to welcome screen and reset user state."""
         self.current_user = None
@@ -227,49 +211,41 @@ class LibraryApp:
     def switch_to_login(self, user_type="reader"):
         """Switch to appropriate login screen."""
         screen = self.librarian_login_screen if user_type == "librarian" else self.login_screen
-        # Update the screen's user type in case it was reused
         screen.user_type = user_type
         self.stack.setCurrentWidget(screen)
 
     def switch_to_register(self, user_type="reader"):
         """Switch to appropriate registration screen."""
         screen = self.librarian_register_screen if user_type == "librarian" else self.register_screen
-        # Update the screen's user type in case it was reused
         screen.user_type = user_type
         self.stack.setCurrentWidget(screen)
 
     def switch_to_reader_dashboard(self):
         """Switch to reader dashboard with data refresh."""
         try:
-            # Ensure user info is set in the dashboard
             if self.current_user and 'id' in self.current_user:
                 self.reader_dashboard.set_user_info(
                     self.current_user.get('username', 'Reader'),
                     self.current_user.get('id')
                 )
             
-            # Load fresh data
             self.reader_dashboard.load_data()
             self.stack.setCurrentWidget(self.reader_dashboard)
         except Exception as e:
             print(f"Error switching to reader dashboard: {e}")
-            # Fallback to basic dashboard
             self.stack.setCurrentWidget(self.reader_dashboard)
 
     def switch_to_librarian_dashboard(self):
         """Switch to librarian dashboard with data refresh."""
         try:
-            # Ensure username is set
             if self.current_user and 'username' in self.current_user:
                 self.librarian_dashboard.set_username(self.current_user['username'])
             
-            # Refresh data
             self.librarian_dashboard.refresh_all_tabs()
             
             self.stack.setCurrentWidget(self.librarian_dashboard)
         except Exception as e:
             print(f"Error switching to librarian dashboard: {e}")
-            # Fallback to basic dashboard
             self.stack.setCurrentWidget(self.librarian_dashboard)
 
     def logout(self):
@@ -305,7 +281,6 @@ class LibraryApp:
             except Exception as e:
                 print(f"Error refreshing current screen: {e}")
         elif hasattr(current_widget, 'load_books_data'):
-            # For librarian dashboard
             try:
                 current_widget.load_books_data()
                 if hasattr(current_widget, 'load_users_data'):
@@ -318,7 +293,6 @@ class LibraryApp:
     def closeEvent(self, event):
         """Handle application close event."""
         try:
-            # Close database connection if needed
             if db_module.db_manager and hasattr(db_module.db_manager, 'close'):
                 db_module.db_manager.close()
         except Exception as e:
@@ -332,7 +306,6 @@ class LibraryApp:
             sys.exit(self.app.exec())
         except Exception as e:
             print(f"Application error: {e}")
-            # Attempt graceful shutdown
             try:
                 if db_module.db_manager and hasattr(db_module.db_manager, 'close'):
                     db_module.db_manager.close()
@@ -344,7 +317,6 @@ class LibraryApp:
 def main():
     """Main entry point with error handling."""
     try:
-        # Create and run the application
         app = LibraryApp()
         app.run()
     except Exception as e:

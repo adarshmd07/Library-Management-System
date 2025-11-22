@@ -1,12 +1,16 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                                 QPushButton, QFrame, QProgressBar)
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 from styles.style_manager import StyleManager
 
+
 class LoanCard(QFrame):
-    """
-    Custom widget to display a book loan with status, due date, and actions.
-    """
+    """Widget to display a book loan with status, due date, and actions."""
+    
+    renew_button_clicked = Signal(int)
+    return_button_clicked = Signal(int)
+    
     def __init__(self, loan_data, app):
         super().__init__()
         self.loan_data = loan_data
@@ -15,7 +19,7 @@ class LoanCard(QFrame):
         StyleManager.apply_styles(self)
     
     def setup_ui(self):
-        # Main card layout
+        """Setup the user interface."""
         self.setProperty("class", "dashboard-card")
         self.setMinimumHeight(120)
         
@@ -23,10 +27,8 @@ class LoanCard(QFrame):
         layout.setContentsMargins(20, 15, 20, 15)
         layout.setSpacing(10)
         
-        # Top section with book info and status
         top_layout = QHBoxLayout()
         
-        # Book information
         book_info_layout = QVBoxLayout()
         book_info_layout.setSpacing(5)
         
@@ -41,7 +43,6 @@ class LoanCard(QFrame):
         top_layout.addLayout(book_info_layout)
         top_layout.addStretch()
         
-        # Status badge
         status_layout = QVBoxLayout()
         status_layout.setAlignment(Qt.AlignRight | Qt.AlignTop)
         
@@ -49,15 +50,50 @@ class LoanCard(QFrame):
         self.status_label = QLabel(status.upper())
         self.status_label.setProperty("class", "status-badge")
         
-        # Set status-specific styling
         if status.lower() == "overdue":
-            self.status_label.setProperty("status", "overdue")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background-color: #fee2e2;
+                    color: #dc2626;
+                    padding: 6px 12px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+            """)
         elif status.lower() == "active":
-            self.status_label.setProperty("status", "active")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background-color: #dbeafe;
+                    color: #2563eb;
+                    padding: 6px 12px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+            """)
         elif status.lower() == "returned":
-            self.status_label.setProperty("status", "returned")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background-color: #dcfce7;
+                    color: #16a34a;
+                    padding: 6px 12px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+            """)
         else:
-            self.status_label.setProperty("status", "unknown")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background-color: #f3f4f6;
+                    color: #6b7280;
+                    padding: 6px 12px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+            """)
             
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setMinimumWidth(80)
@@ -68,10 +104,8 @@ class LoanCard(QFrame):
         
         layout.addLayout(top_layout)
         
-        # Middle section with due date and progress
         middle_layout = QHBoxLayout()
         
-        # Due date info
         due_info_layout = QVBoxLayout()
         due_info_layout.setSpacing(5)
         
@@ -86,7 +120,6 @@ class LoanCard(QFrame):
         middle_layout.addLayout(due_info_layout)
         middle_layout.addStretch()
         
-        # Days remaining/overdue info
         if "days_remaining" in self.loan_data:
             days_info = QVBoxLayout()
             days_info.setSpacing(5)
@@ -118,7 +151,6 @@ class LoanCard(QFrame):
         
         layout.addLayout(middle_layout)
         
-        # Progress bar for loan period (visual indicator)
         if "days_remaining" in self.loan_data and "loan_period_days" in self.loan_data:
             progress_layout = QVBoxLayout()
             progress_layout.setSpacing(5)
@@ -137,7 +169,6 @@ class LoanCard(QFrame):
             self.progress_bar.setTextVisible(False)
             self.progress_bar.setMaximumHeight(8)
             
-            # Set progress bar color based on remaining time
             if days_remaining <= 2:
                 self.progress_bar.setStyleSheet("""
                     QProgressBar {
@@ -178,72 +209,23 @@ class LoanCard(QFrame):
             progress_layout.addWidget(self.progress_bar)
             layout.addLayout(progress_layout)
         
-        # Bottom section with action buttons
         bottom_layout = QHBoxLayout()
         bottom_layout.addStretch()
         
-        # Renew button (only for active loans)
         if self.loan_data.get("status", "").lower() == "active":
             self.renew_btn = QPushButton("Renew Loan")
             StyleManager.style_primary_button(self.renew_btn)
             self.renew_btn.setMinimumWidth(100)
             self.renew_btn.setMaximumWidth(120)
-            self.renew_btn.clicked.connect(self.renew_loan)
+            self.renew_btn.clicked.connect(lambda: self.renew_button_clicked.emit(self.loan_data.get("id")))
             bottom_layout.addWidget(self.renew_btn)
         
-        # Return button (for active and overdue loans)
         if self.loan_data.get("status", "").lower() in ["active", "overdue"]:
             self.return_btn = QPushButton("Return Book")
             StyleManager.style_secondary_button(self.return_btn)
             self.return_btn.setMinimumWidth(100)
             self.return_btn.setMaximumWidth(120)
-            self.return_btn.clicked.connect(self.return_book)
+            self.return_btn.clicked.connect(lambda: self.return_button_clicked.emit(self.loan_data.get("id")))
             bottom_layout.addWidget(self.return_btn)
         
         layout.addLayout(bottom_layout)
-    
-    def renew_loan(self):
-        """Handle renew loan button click"""
-        from PySide6.QtWidgets import QMessageBox
-        
-        # PLACEHOLDER: Simulate renew loan process
-        success = True  # Simulate successful renewal
-        
-        if success:
-            QMessageBox.information(
-                self, 
-                "Loan Renewed", 
-                f"'{self.loan_data['book_title']}' has been renewed.\n"
-                f"New due date: 2023-12-30\n\n"
-                "(This is a demo - no actual renewal occurred)"
-            )
-        else:
-            QMessageBox.warning(
-                self, 
-                "Renewal Error", 
-                "Unable to renew this loan. Please contact the library."
-            )
-    
-    def return_book(self):
-        """Handle return book button click"""
-        from PySide6.QtWidgets import QMessageBox
-        
-        # PLACEHOLDER: Simulate return book process
-        success = True  # Simulate successful return
-        
-        if success:
-            QMessageBox.information(
-                self, 
-                "Book Returned", 
-                f"Thank you for returning '{self.loan_data['book_title']}'!\n\n"
-                "(This is a demo - no actual return occurred)"
-            )
-            # Emit signal to refresh the loans list
-            if hasattr(self.app, 'current_dashboard') and hasattr(self.app.current_dashboard, 'load_user_loans'):
-                self.app.current_dashboard.load_user_loans()
-        else:
-            QMessageBox.warning(
-                self, 
-                "Return Error", 
-                "Unable to process return. Please contact the library."
-            )

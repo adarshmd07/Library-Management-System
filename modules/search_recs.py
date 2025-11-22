@@ -1,9 +1,3 @@
-"""
-Search Records Module
-Handles searching and filtering records in the database.
-"""
-
-
 class SearchRecordsModule:
     """Module for searching and filtering records in the system."""
     
@@ -26,7 +20,6 @@ class SearchRecordsModule:
         filtered_books = []
         
         for book in books:
-            # Search in title, author, genre, and year
             if (search_text in book.title.lower() or
                 search_text in book.author.lower() or
                 (book.genre and search_text in book.genre.lower()) or
@@ -54,7 +47,6 @@ class SearchRecordsModule:
         filtered_users = []
         
         for user in users:
-            # Search in full name, email, username, and user type
             if (search_text in user.full_name.lower() or
                 search_text in user.email.lower() or
                 search_text in user.username.lower() or
@@ -89,7 +81,6 @@ class SearchRecordsModule:
             borrower_name = user.username.lower() if user else ""
             status = loan.update_status().lower()
             
-            # Search in book title, borrower, status, and dates
             if (search_text in book_title or
                 search_text in borrower_name or
                 search_text in status or
@@ -140,7 +131,7 @@ class SearchRecordsModule:
         
         Args:
             users: List of user objects to filter
-            user_type: User type to filter by (e.g., "reader", "librarian")
+            user_type: User type to filter by
             
         Returns:
             list: Filtered list of users
@@ -157,7 +148,7 @@ class SearchRecordsModule:
         
         Args:
             loans: List of loan transaction objects to filter
-            status: Status to filter by ("active", "returned", "overdue", "all")
+            status: Status to filter by
             
         Returns:
             list: Filtered list of loans
@@ -208,7 +199,7 @@ class SearchRecordsModule:
         
         Args:
             books: List of book objects to sort
-            sort_by: Attribute to sort by ("title", "author", "year", "available")
+            sort_by: Attribute to sort by
             ascending: Sort order
             
         Returns:
@@ -231,7 +222,7 @@ class SearchRecordsModule:
         
         Args:
             users: List of user objects to sort
-            sort_by: Attribute to sort by ("name", "username", "email", "type")
+            sort_by: Attribute to sort by
             ascending: Sort order
             
         Returns:
@@ -254,7 +245,7 @@ class SearchRecordsModule:
         
         Args:
             loans: List of loan transaction objects to sort
-            sort_by: Attribute to sort by ("loan_date", "due_date", "status")
+            sort_by: Attribute to sort by
             ascending: Sort order
             
         Returns:

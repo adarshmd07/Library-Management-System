@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 import mysql.connector as connector
 
+
 class DatabaseSetupDialog(QDialog):
     """
     First-time setup dialog for database configuration.
@@ -23,7 +24,6 @@ class DatabaseSetupDialog(QDialog):
         """Initialize the user interface."""
         layout = QVBoxLayout()
         
-        # Title
         title = QLabel("Database Configuration")
         title_font = QFont()
         title_font.setPointSize(16)
@@ -32,7 +32,6 @@ class DatabaseSetupDialog(QDialog):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
         
-        # Description
         desc = QLabel(
             "Please enter your MySQL database credentials.\n"
             "These will be saved locally for future use."
@@ -42,11 +41,9 @@ class DatabaseSetupDialog(QDialog):
         desc.setStyleSheet("color: #666; margin: 10px;")
         layout.addWidget(desc)
         
-        # Configuration form
         form_group = QGroupBox("MySQL Connection Details")
         form_layout = QVBoxLayout()
         
-        # Host
         host_layout = QHBoxLayout()
         host_label = QLabel("Host:")
         host_label.setMinimumWidth(100)
@@ -57,7 +54,6 @@ class DatabaseSetupDialog(QDialog):
         host_layout.addWidget(self.host_input)
         form_layout.addLayout(host_layout)
         
-        # Database name
         db_layout = QHBoxLayout()
         db_label = QLabel("Database:")
         db_label.setMinimumWidth(100)
@@ -68,7 +64,6 @@ class DatabaseSetupDialog(QDialog):
         db_layout.addWidget(self.db_input)
         form_layout.addLayout(db_layout)
         
-        # Username
         user_layout = QHBoxLayout()
         user_label = QLabel("Username:")
         user_label.setMinimumWidth(100)
@@ -79,7 +74,6 @@ class DatabaseSetupDialog(QDialog):
         user_layout.addWidget(self.user_input)
         form_layout.addLayout(user_layout)
         
-        # Password
         pass_layout = QHBoxLayout()
         pass_label = QLabel("Password:")
         pass_label.setMinimumWidth(100)
@@ -93,7 +87,6 @@ class DatabaseSetupDialog(QDialog):
         form_group.setLayout(form_layout)
         layout.addWidget(form_group)
         
-        # Buttons
         button_layout = QHBoxLayout()
         
         self.test_btn = QPushButton("Test Connection")
@@ -130,7 +123,6 @@ class DatabaseSetupDialog(QDialog):
         button_layout.addWidget(self.save_btn)
         layout.addLayout(button_layout)
         
-        # Help text
         help_text = QLabel(
             "💡 Tip: Click 'Test Connection' first to verify your credentials work."
         )
@@ -156,14 +148,12 @@ class DatabaseSetupDialog(QDialog):
             return
         
         try:
-            # Test connection
             conn = connector.connect(
                 host=host,
                 user=user,
                 password=password
             )
             
-            # Try to create/use database
             cursor = conn.cursor()
             cursor.execute(f"CREATE DATABASE IF NOT EXISTS {database}")
             conn.database = database
@@ -217,7 +207,6 @@ class DatabaseSetupDialog(QDialog):
             )
             return
         
-        # Test connection before saving
         try:
             conn = connector.connect(
                 host=host,
@@ -241,7 +230,6 @@ class DatabaseSetupDialog(QDialog):
             if reply == QMessageBox.No:
                 return
         
-        # Save configuration
         self.db_config = {
             'host': host,
             'database': database,

@@ -1,14 +1,13 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QColor
-from models.transaction import Transaction
+from PySide6.QtGui import QFont
 
 
 class InsightCard:
     """Class responsible for creating insight cards and sections."""
     
     def create_insights_section(self, total_loans, total_users, total_books, books, total_copies, available_copies, has_data):
-        """Create and layout the 'Insights' summary cards section."""
+        """Create and layout the insights summary cards section."""
         insights_layout = QVBoxLayout()
         insights_layout.setSpacing(20)
         insights_layout.setContentsMargins(0, 10, 0, 0)
@@ -32,29 +31,21 @@ class InsightCard:
                 ("📅", "Total Loans", str(total_loans or 0), "#ef4444"),
             ]
         else:
-            # Safely compute insights from real data
             try:
-                top_book = max(books, key=lambda b: b.borrow_count).title if books else "N/A"
+                top_book = "N/A"
+                if books:
+                    max_loans = 0
+                    for b in books:
+                        loan_count = b.get_loans_count() if hasattr(b, 'get_loans_count') else 0
+                        if loan_count > max_loans:
+                            max_loans = loan_count
+                            top_book = b.title
             except Exception:
                 top_book = "N/A"
 
-            try:
-                active_reader = Transaction.get_most_active_user() or "N/A"
-            except Exception:
-                active_reader = "N/A"
-
-            try:
-                genres = {}
-                for b in books:
-                    genres[b.genre] = genres.get(b.genre, 0) + b.borrow_count
-                popular_genre = max(genres, key=genres.get) if genres else "N/A"
-            except Exception:
-                popular_genre = "N/A"
-
-            try:
-                avg_duration = round(Transaction.get_average_loan_duration(), 1)
-            except Exception:
-                avg_duration = "N/A"
+            active_reader = "N/A"
+            popular_genre = "N/A"
+            avg_duration = "N/A"
 
             avail_rate = round((available_copies / total_copies * 100), 1) if total_copies else 0
 
@@ -71,7 +62,6 @@ class InsightCard:
             card = self._create_insight_card(icon, title, value, color)
             grid.addWidget(card, i // 3, i % 3)
 
-        # Make columns stretch evenly
         for c in range(3):
             grid.setColumnStretch(c, 1)
 
@@ -113,83 +103,3 @@ class InsightCard:
         card_layout.addStretch()
 
         return card
-
-    def create_stat_card(self, icon, title, value, color):
-        """Create a stat card with proper data handling."""
-        try:
-            # Ensure value is never None and is properly formatted
-            if value is None:
-                formatted_value = "0"
-            elif isinstance(value, str) and '%' in value:
-                formatted_value = value.replace(' ', '')
-            elif isinstance(value, (int, float)):
-                formatted_value = f"{value:,}"
-            else:
-                formatted_value = str(value)
-
-            # Create card widget
-            card = QWidget()
-            card.setStyleSheet(f"""
-                QWidget {{
-                    background: white;
-                    border-radius: 12px;
-                    border-left: 4px solid {color};
-                }}
-            """)
-            
-            card.setMinimumHeight(140)
-            card.setMinimumWidth(200)
-            
-            layout = QVBoxLayout(card)
-            layout.setContentsMargins(20, 18, 20, 18)
-            layout.setSpacing(10)
-            
-            # Icon
-            icon_label = QLabel(icon)
-            icon_label.setFont(QFont("Segoe UI Emoji", 28))
-            icon_label.setStyleSheet(f"color: {color}; background: transparent;")
-            icon_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            layout.addWidget(icon_label)
-            
-            # Title
-            title_label = QLabel(title)
-            title_label.setFont(QFont("Segoe UI", 13))
-            title_label.setStyleSheet("color: #6b7280; background: transparent;")
-            title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            title_label.setWordWrap(False)
-            layout.addWidget(title_label)
-            
-            # Value
-            value_label = QLabel(formatted_value)
-            value_label.setFont(QFont("Segoe UI", 32, QFont.Bold))
-            value_label.setStyleSheet(f"color: {color}; background: transparent;")
-            value_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            value_label.setWordWrap(False)
-            layout.addWidget(value_label)
-            
-            layout.addStretch()
-            
-            return card
-
-        except Exception as e:
-            print(f"Error creating stat card: {e}")
-            import traceback
-            traceback.print_exc()
-            
-            error_card = QWidget()
-            error_card.setStyleSheet("""
-                QWidget {
-                    background: #fee2e2;
-                    border: 1px solid #ef4444;
-                    border-radius: 8px;
-                    padding: 10px;
-                    min-height: 140px;
-                    min-width: 200px;
-                }
-            """)
-            error_layout = QVBoxLayout(error_card)
-            error_label = QLabel(f"Error: {str(e)}")
-            error_label.setStyleSheet("color: #dc2626;")
-            error_label.setWordWrap(True)
-            error_layout.addWidget(error_label)
-            return error_card

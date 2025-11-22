@@ -1,13 +1,15 @@
-import sys
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QLabel, QPushButton,
+    QWidget, QVBoxLayout, QLabel, QPushButton,
     QFrame, QHBoxLayout
 )
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QPixmap
 from utils import resource_path
 
+
 class WelcomeScreen(QWidget):
+    """Welcome screen for the Library Management System."""
+    
     def __init__(self, app):
         super().__init__()
         self.app = app
@@ -15,15 +17,13 @@ class WelcomeScreen(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        # Enable high DPI scaling
+        """Setup the user interface."""
         self.setAttribute(Qt.WA_TranslucentBackground)
         
-        # Main layout with background
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # Background container with gradient
         background_frame = QFrame()
         background_frame.setStyleSheet("""
             QFrame {
@@ -39,16 +39,6 @@ class WelcomeScreen(QWidget):
         background_layout.setSpacing(0)
         background_layout.addStretch()
         
-        # Central card with modern design
-        card = QFrame()
-        card.setStyleSheet("""
-            QFrame {
-                background: white;
-                border-radius: 16px;
-                border: none;
-            }
-        """)
-        # Central card with modern design
         card = QFrame()
         card.setStyleSheet("""
             QFrame {
@@ -57,24 +47,21 @@ class WelcomeScreen(QWidget):
                 border: none;
             }
         """)
-        card.setMinimumWidth(750)   # wider
-        card.setMaximumWidth(900)   # allow a bigger max
+        card.setMinimumWidth(750)
+        card.setMaximumWidth(900)
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(70, 70, 70, 70)  # more inner padding
-        card_layout.setSpacing(40)  # more spacing between elements
-
+        card_layout.setContentsMargins(70, 70, 70, 70)
+        card_layout.setSpacing(40)
         
-        # Header section
         header_layout = QVBoxLayout()
         header_layout.setSpacing(15)
         header_layout.setAlignment(Qt.AlignCenter)
         
-        # Title with improved styling
         title = QLabel("Library Management System")
         title.setStyleSheet("""
             QLabel {
                 font-size: 32px;
-                font-weight: bold;
+                font-weight: 700;
                 color: #2D3748;
                 margin: 0;
                 padding: 0;
@@ -83,7 +70,6 @@ class WelcomeScreen(QWidget):
         title.setAlignment(Qt.AlignCenter)
         header_layout.addWidget(title)
         
-        # Subtitle with better styling
         self.subtitle_label = QLabel("Your Gateway to Knowledge")
         self.subtitle_label.setStyleSheet("""
             QLabel {
@@ -100,7 +86,6 @@ class WelcomeScreen(QWidget):
         
         card_layout.addLayout(header_layout)
         
-        # User type selection buttons with improved design
         self.initial_layout = QHBoxLayout()
         self.initial_layout.setSpacing(30)
         self.initial_layout.setAlignment(Qt.AlignCenter)
@@ -115,12 +100,10 @@ class WelcomeScreen(QWidget):
         
         card_layout.addLayout(self.initial_layout)
         
-        # Action buttons (initially hidden) with improved styling
         self.action_layout = QVBoxLayout()
         self.action_layout.setSpacing(15)
         self.action_layout.setAlignment(Qt.AlignCenter)
         
-        # Login button
         self.login_btn = QPushButton("Login")
         self.login_btn.setStyleSheet("""
             QPushButton {
@@ -145,7 +128,6 @@ class WelcomeScreen(QWidget):
         self.login_btn.hide()
         self.action_layout.addWidget(self.login_btn)
         
-        # Register button
         self.register_btn = QPushButton("Register")
         self.register_btn.setStyleSheet("""
             QPushButton {
@@ -170,7 +152,6 @@ class WelcomeScreen(QWidget):
         self.register_btn.hide()
         self.action_layout.addWidget(self.register_btn)
         
-        # Back button with improved styling
         self.back_btn = QPushButton("← Back to Selection")
         self.back_btn.setStyleSheet("""
             QPushButton {
@@ -194,14 +175,13 @@ class WelcomeScreen(QWidget):
         
         card_layout.addLayout(self.action_layout)
         
-        # Add card to background
         background_layout.addWidget(card, alignment=Qt.AlignCenter)
         background_layout.addStretch()
         
-        # Add background to main layout
         main_layout.addWidget(background_frame)
 
     def create_user_type_button(self, text, icon_path):
+        """Create a user type selection button."""
         button = QPushButton()
         button.setFixedSize(QSize(200, 200))
         button.setObjectName("UserTypeButton")
@@ -211,35 +191,23 @@ class WelcomeScreen(QWidget):
         layout.setAlignment(Qt.AlignCenter)
         layout.setSpacing(15)
 
-        # Load icon from assets with high-quality scaling
         icon_label = QLabel()
         icon_label.setAlignment(Qt.AlignCenter)
         
         try:
             pixmap = QPixmap(resource_path(icon_path))
             if not pixmap.isNull():
-                # Get device pixel ratio for high DPI displays
                 dpr = self.devicePixelRatioF()
-                
-                # Calculate target size considering DPI
                 target_size = QSize(90, 90) * dpr
-                
-                # Scale with high-quality transformation
                 scaled_pixmap = pixmap.scaled(
                     target_size,
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
                 )
-                
-                # Set device pixel ratio for crisp rendering
                 scaled_pixmap.setDevicePixelRatio(dpr)
-                
                 icon_label.setPixmap(scaled_pixmap)
-                # Set fixed size considering DPI
                 icon_label.setFixedSize(90, 90)
-                
             else:
-                # Fallback to SVG-like emoji with proper scaling
                 fallback_text = "👤" if "Reader" in text else "📊"
                 icon_label.setText(fallback_text)
                 icon_label.setStyleSheet("""
@@ -250,10 +218,8 @@ class WelcomeScreen(QWidget):
                     }
                 """)
                 icon_label.setFixedSize(90, 90)
-                
         except Exception as e:
             print(f"Error loading image {icon_path}: {e}")
-            # Fallback to SVG-like emoji
             fallback_text = "👤" if "Reader" in text else "📊"
             icon_label.setText(fallback_text)
             icon_label.setStyleSheet("""
@@ -297,13 +263,12 @@ class WelcomeScreen(QWidget):
         return button
 
     def select_user_type(self, user_type):
+        """Handle user type selection."""
         self.user_type = user_type
 
-        # Hide initial buttons
         self.reader_btn.hide()
         self.librarian_btn.hide()
 
-        # Show action buttons
         self.login_btn.show()
         self.register_btn.show()
         self.back_btn.show()
@@ -311,53 +276,24 @@ class WelcomeScreen(QWidget):
         self.subtitle_label.setText(f"Welcome, {self.user_type.capitalize()}. Please select an option.")
 
     def handle_login_click(self):
+        """Handle login button click."""
         if self.user_type:
             self.app.switch_to_login(self.user_type)
 
     def handle_register_click(self):
+        """Handle register button click."""
         if self.user_type:
             self.app.switch_to_register(self.user_type)
 
     def go_back(self):
+        """Go back to user type selection."""
         self.user_type = None
         
-        # Show initial buttons
         self.reader_btn.show()
         self.librarian_btn.show()
         
-        # Hide action buttons
         self.login_btn.hide()
         self.register_btn.hide()
         self.back_btn.hide()
 
         self.subtitle_label.setText("Your Gateway to Knowledge")
-
-
-if __name__ == "__main__":
-    # Enable high DPI scaling for the application
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-    
-    app = QApplication(sys.argv)
-    
-    # Placeholder for the main app class
-    class MockApp:
-        def switch_to_login(self, user_type):
-            print(f"Switching to login screen for {user_type}")
-        
-        def switch_to_register(self, user_type):
-            print(f"Switching to register screen for {user_type}")
-    
-    # Create the main window to host the welcome screen
-    main_window = QWidget()
-    main_window.setMinimumSize(1000, 800)
-    main_window.setWindowTitle("Library Management System")
-    
-    welcome_screen = WelcomeScreen(MockApp())
-    
-    layout = QVBoxLayout(main_window)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.addWidget(welcome_screen)
-    
-    main_window.show()
-    sys.exit(app.exec())

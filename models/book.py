@@ -4,6 +4,7 @@ import os
 import shutil
 from pathlib import Path
 
+
 class Book:
     """
     Book model for handling book-related database operations.
@@ -79,7 +80,6 @@ class Book:
         if not is_valid:
             return False, "; ".join(errors)
         
-        # Check if ISBN already exists (only if ISBN is provided)
         if self.isbn and self.isbn.strip():
             existing_book = get_db().fetch_one(
                 "SELECT id FROM books WHERE isbn = %s AND id != %s",
@@ -90,7 +90,6 @@ class Book:
                 return False, "A book with this ISBN already exists"
         
         if self.id:
-            # Update existing book
             query = """
                 UPDATE books 
                 SET title = %s, author = %s, isbn = %s, genre = %s, 
@@ -106,7 +105,6 @@ class Book:
             )
             return success, self.id if success else "Failed to update book"
         else:
-            # Create new book
             query = """
                 INSERT INTO books (title, author, isbn, genre, publication_year, 
                                  total_copies, available_copies, image_path)
@@ -126,22 +124,33 @@ class Book:
                 return False, "Failed to create book"
     
     @classmethod
-    def find_by_id(cls, transaction_id):
+    def find_by_id(cls, book_id):
         """
-        Find a transaction by ID.
+        Find a book by ID.
+        
+        Args:
+            book_id (int): Book ID
+            
+        Returns:
+            Book or None: Book object if found, None otherwise
         """
-        transaction_data = get_db().fetch_one(
-            "SELECT id, book_id, user_id, loan_date, return_date FROM loans WHERE id = %s",
-            (transaction_id,)
+        book_data = get_db().fetch_one(
+            "SELECT id, title, author, isbn, genre, publication_year, "
+            "total_copies, available_copies, image_path FROM books WHERE id = %s",
+            (book_id,)
         )
         
-        if transaction_data:
+        if book_data:
             return cls(
-                transaction_id=transaction_data[0],
-                book_id=transaction_data[1],
-                user_id=transaction_data[2],
-                loan_date=transaction_data[3],  # This might be a date object from database
-                return_date=transaction_data[4]  # This might be a date object from database
+                book_id=book_data[0],
+                title=book_data[1],
+                author=book_data[2],
+                isbn=book_data[3],
+                genre=book_data[4],
+                publication_year=book_data[5],
+                total_copies=book_data[6],
+                available_copies=book_data[7],
+                image_path=book_data[8]
             )
         return None
     
@@ -288,7 +297,6 @@ class Book:
         if not self.id:
             return False, "Cannot delete book without ID"
         
-        # Check if book has active loans
         active_loans = get_db().fetch_one(
             "SELECT COUNT(*) FROM loans WHERE book_id = %s AND return_date IS NULL",
             (self.id,)
@@ -297,7 +305,6 @@ class Book:
         if active_loans > 0:
             return False, f"Cannot delete book with {active_loans} active loans"
         
-        # Delete the image file if it exists
         if self.image_path and os.path.exists(self.image_path):
             try:
                 os.remove(self.image_path)
@@ -355,7 +362,6 @@ class Book:
     def save_image(self, source_path, book_covers_dir=None):
         """
         Save book cover image to the appropriate directory.
-        Uses the main project's assets/book_covers directory.
         
         Args:
             source_path (str): Path to source image
@@ -368,28 +374,20 @@ class Book:
             return False, "Source image file not found"
         
         try:
-            # Set default directory if not provided
-            # Use the main project's assets/book_covers directory
             if book_covers_dir is None:
-                # Get the project root (parent of parent of this file)
                 base_dir = Path(__file__).parent.parent
                 book_covers_dir = base_dir / "assets" / "book_covers"
             
-            # Create directory if it doesn't exist
             os.makedirs(book_covers_dir, exist_ok=True)
             
-            # Generate filename
             file_extension = Path(source_path).suffix
             filename = f"book_{self.id}{file_extension}" if self.id else f"book_temp_{datetime.now().timestamp():.0f}{file_extension}"
             destination_path = Path(book_covers_dir) / filename
             
-            # Copy the file
             shutil.copy2(source_path, destination_path)
             
-            # Update the image path
             self.image_path = str(destination_path)
             
-            # Update in database if book exists
             if self.id:
                 get_db().execute_query(
                     "UPDATE books SET image_path = %s WHERE id = %s",

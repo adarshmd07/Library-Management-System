@@ -1,13 +1,13 @@
 from database import get_db
-from datetime import datetime, timedelta, date  # Add date import
+from datetime import datetime, timedelta, date
 from models.book import Book
 from models.user import User
+
 
 class Transaction:
     """
     Transaction model for handling loan-related database operations.
     Represents book loans/checkouts in the library management system.
-    Note: In your database schema, this corresponds to the 'loans' table.
     """
     
     def __init__(self, transaction_id=None, book_id=None, user_id=None, 
@@ -20,7 +20,6 @@ class Transaction:
         self.book_id = book_id
         self.user_id = user_id
         
-        # Handle date conversion from database date objects to strings
         self.loan_date = self._convert_date_to_string(loan_date) or datetime.now().strftime('%Y-%m-%d')
         self.return_date = self._convert_date_to_string(return_date)
         self.due_date = self._convert_date_to_string(due_date) or self._calculate_due_date()
@@ -28,7 +27,6 @@ class Transaction:
         self.fine_amount = fine_amount
         self.status = status
         
-        # Cache for related objects
         self._book = None
         self._user = None
     
@@ -41,14 +39,13 @@ class Transaction:
         elif isinstance(date_value, str):
             return date_value
         else:
-            return str(date_value)  # Fallback
+            return str(date_value)
     
     def _calculate_due_date(self, loan_period_days=14):
         """
         Calculate due date based on loan date and loan period.
         """
         if self.loan_date:
-            # Handle both string and date objects
             if isinstance(self.loan_date, str):
                 loan_datetime = datetime.strptime(self.loan_date, '%Y-%m-%d')
             else:
@@ -73,21 +70,18 @@ class Transaction:
         if not self.loan_date:
             errors.append("Loan date is required")
         
-        # Check if book exists and is available (for new loans)
-        if not self.id:  # New transaction
+        if not self.id:
             book = Book.find_by_id(self.book_id)
             if not book:
                 errors.append("Book not found")
             elif not book.is_available():
                 errors.append("Book is not available for checkout")
         
-        # Check if user exists
         user = User.find_by_id(self.user_id)
         if not user:
             errors.append("User not found")
         
-        # Check if user already has this book (for new loans)
-        if not self.id:  # New transaction
+        if not self.id:
             existing_loan = get_db().fetch_one(
                 "SELECT id FROM loans WHERE user_id = %s AND book_id = %s AND return_date IS NULL",
                 (self.user_id, self.book_id)
@@ -106,7 +100,6 @@ class Transaction:
             return False, "; ".join(errors)
         
         if self.id:
-            # Update existing transaction
             query = """
                 UPDATE loans 
                 SET book_id = %s, user_id = %s, loan_date = %s, 
@@ -120,7 +113,6 @@ class Transaction:
             )
             return success, self.id if success else "Failed to update transaction"
         else:
-            # Create new transaction
             query = """
                 INSERT INTO loans (book_id, user_id, loan_date, return_date)
                 VALUES (%s, %s, %s, %s)
@@ -132,7 +124,6 @@ class Transaction:
             
             if success:
                 self.id = get_db().fetch_one("SELECT LAST_INSERT_ID()")[0]
-                # Update book availability
                 book = Book.find_by_id(self.book_id)
                 if book:
                     book.checkout()
@@ -163,20 +154,17 @@ class Transaction:
         self.return_date = datetime.now().strftime('%Y-%m-%d')
         self.status = "returned"
         
-        # Update in database
         success = get_db().execute_query(
             "UPDATE loans SET return_date = %s WHERE id = %s",
             (self.return_date, self.id)
         )
         
         if success:
-            # Update book availability
             book = Book.find_by_id(self.book_id)
             if book:
                 book.return_book()
             return True, "Book returned successfully"
         else:
-            # Rollback changes
             self.return_date = None
             self.status = "active"
             return False, "Failed to return book"
@@ -185,13 +173,12 @@ class Transaction:
         """
         Check if the loan is overdue.
         """
-        if self.return_date:  # Already returned
+        if self.return_date:
             return False
         
         if not self.due_date:
             return False
         
-        # Convert to date objects for comparison
         current_date = datetime.now().date()
         
         if isinstance(self.due_date, str):
@@ -200,6 +187,10 @@ class Transaction:
             due_date = self.due_date
         
         return current_date > due_date
+    
+    def is_active(self):
+        """Check if the loan is active (not returned)."""
+        return not self.return_date
     
     def days_overdue(self):
         """
@@ -210,7 +201,6 @@ class Transaction:
         
         current_date = datetime.now().date()
         
-        # Convert to date objects for comparison
         if isinstance(self.due_date, str):
             due_date = datetime.strptime(self.due_date, '%Y-%m-%d').date()
         else:
@@ -222,7 +212,7 @@ class Transaction:
         """
         Calculate number of days remaining until due date.
         """
-        if self.return_date:  # Already returned
+        if self.return_date:
             return 0
         
         if not self.due_date:
@@ -230,7 +220,6 @@ class Transaction:
         
         current_date = datetime.now().date()
         
-        # Convert to date objects for comparison
         if isinstance(self.due_date, str):
             due_date = datetime.strptime(self.due_date, '%Y-%m-%d').date()
         else:
@@ -291,8 +280,8 @@ class Transaction:
                 transaction_id=transaction_data[0],
                 book_id=transaction_data[1],
                 user_id=transaction_data[2],
-                loan_date=transaction_data[3],  # This might be a date object from database
-                return_date=transaction_data[4]  # This might be a date object from database
+                loan_date=transaction_data[3],
+                return_date=transaction_data[4]
             )
         return None
     
@@ -358,18 +347,15 @@ class Transaction:
     def get_all_loans(cls, status_filter=None):
         """
         Get all loans with optional status filter.
-        MySQL-compatible version.
         """
         base_query = "SELECT id, book_id, user_id, loan_date, return_date FROM loans"
         params = []
         
         if status_filter == "active":
-            # Active: not returned and not overdue (within 14 days)
             base_query += " WHERE return_date IS NULL AND CURDATE() <= DATE_ADD(loan_date, INTERVAL 14 DAY)"
         elif status_filter == "returned":
             base_query += " WHERE return_date IS NOT NULL"
         elif status_filter == "overdue":
-            # Overdue: not returned and past 14 days
             base_query += " WHERE return_date IS NULL AND CURDATE() > DATE_ADD(loan_date, INTERVAL 14 DAY)"
         
         base_query += " ORDER BY loan_date DESC"
@@ -401,7 +387,6 @@ class Transaction:
     def get_loans_due_soon(cls, days=3):
         """
         Get loans that are due within the specified number of days.
-        MySQL-compatible version.
         """
         query = """
             SELECT id, book_id, user_id, loan_date, return_date 
@@ -435,7 +420,6 @@ class Transaction:
         if not self.id:
             return False, "Cannot delete transaction without ID"
         
-        # If book is not returned, update book availability
         if not self.return_date:
             book = Book.find_by_id(self.book_id)
             if book:
@@ -454,7 +438,6 @@ class Transaction:
         if not self.due_date:
             return False, "No due date set for this loan"
         
-        # Convert to datetime for calculation
         if isinstance(self.due_date, str):
             current_due_date = datetime.strptime(self.due_date, '%Y-%m-%d')
         else:
@@ -474,7 +457,7 @@ class Transaction:
         
         return {
             'id': self.id,
-            'book_id': self.book_id,
+'book_id': self.book_id,
             'user_id': self.user_id,
             'loan_date': self.loan_date,
             'return_date': self.return_date,

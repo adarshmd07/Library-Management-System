@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QTabWidget, QFrame, QSizePolicy, QPushButton
+from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLabel, 
+                                QTabWidget, QFrame, QSizePolicy, QPushButton)
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 from config import Config
@@ -27,11 +28,11 @@ class LibrarianDashboard(QWidget):
             self.welcome_label.setText(f"Welcome, {self.username}")
 
     def setup_ui(self):
+        """Setup the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
-        # Header with welcome and navigation in one line
         header_layout = QHBoxLayout()
         
         self.welcome_label = QLabel(f"Welcome, {self.username}")
@@ -44,7 +45,6 @@ class LibrarianDashboard(QWidget):
 
         layout.addLayout(header_layout)
 
-        # Main content area with maximum space for records
         content_frame = QFrame()
         content_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         content_frame.setStyleSheet("""
@@ -97,25 +97,21 @@ class LibrarianDashboard(QWidget):
             }}
         """)
         
-        # Set minimum size to ensure larger display area for records
         self.tab_widget.setMinimumSize(1000, 600)
         
         content_layout.addWidget(self.tab_widget)
         layout.addWidget(content_frame)
 
-        # Initialize tabs
         self.book_tab = BookTab(self)
         self.user_tab = UserTab(self)
         self.loan_tab = LoanTab(self)
         self.report_tab = ReportTab(self)
 
-        # Add tabs to widget
         self.tab_widget.addTab(self.book_tab, "Books")
         self.tab_widget.addTab(self.user_tab, "Users")
         self.tab_widget.addTab(self.loan_tab, "Loans")
         self.tab_widget.addTab(self.report_tab, "Reports")
 
-        # Ensure tabs expand to use all available space
         self.tab_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     @staticmethod
@@ -151,14 +147,15 @@ class LibrarianDashboard(QWidget):
 
     @staticmethod
     def create_action_cell(buttons):
-        """Create action button cell for tables - centralized method."""
+        """Create action button cell for tables."""
+        from PySide6.QtWidgets import QWidget, QHBoxLayout
+        
         container = QWidget()
         layout = QHBoxLayout(container)
         layout.setContentsMargins(8, 3, 8, 3)
         layout.setSpacing(10)
         layout.setAlignment(Qt.AlignCenter)
         
-        # Set button width based on number of buttons
         if len(buttons) == 1:
             button_width = 75
             container_width = 95

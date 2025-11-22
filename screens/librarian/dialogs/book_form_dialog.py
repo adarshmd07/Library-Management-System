@@ -10,7 +10,8 @@ import os
 
 
 class BookFormDialog(QDialog):
-    """Book form dialog."""
+    """Dialog for adding or editing books."""
+    
     def __init__(self, parent=None, book_model=None):
         super().__init__(parent)
         self.book_model = book_model
@@ -24,6 +25,7 @@ class BookFormDialog(QDialog):
         self.resize(800, 400)
 
     def setup_ui(self):
+        """Setup the user interface."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(20)
@@ -32,11 +34,9 @@ class BookFormDialog(QDialog):
         horizontal_layout.setSpacing(20)
         horizontal_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Left form layout
         left_form_layout = QFormLayout()
         left_form_layout.setSpacing(15)
 
-        # Book Image Section
         image_section = QVBoxLayout()
         image_section.setSpacing(8)
         self.image_preview = QLabel()
@@ -75,7 +75,6 @@ class BookFormDialog(QDialog):
         image_section.addLayout(image_buttons)
         left_form_layout.addRow("Book Cover:", image_section)
 
-        # Book Details - Left side
         self.title_input = QLineEdit()
         self.author_input = QLineEdit()
 
@@ -85,11 +84,9 @@ class BookFormDialog(QDialog):
         left_form_layout.addRow("Title*:", self.title_input)
         left_form_layout.addRow("Author*:", self.author_input)
 
-        # Right form layout
         right_form_layout = QFormLayout()
         right_form_layout.setSpacing(15)
 
-        # Book Details - Right side
         self.isbn_input = QLineEdit()
         self.genre_input = QLineEdit()
         self.pub_year_input = QSpinBox()
@@ -107,7 +104,6 @@ class BookFormDialog(QDialog):
         right_form_layout.addRow("Publication Year:", self.pub_year_input)
         right_form_layout.addRow("Total Copies:", self.total_copies_input)
 
-        # Vertical separator
         vertical_bar = QFrame()
         vertical_bar.setFrameShape(QFrame.VLine)
         vertical_bar.setFrameShadow(QFrame.Sunken)
@@ -119,11 +115,9 @@ class BookFormDialog(QDialog):
 
         main_layout.addLayout(horizontal_layout)
 
-        # Load existing data if in edit mode
         if self.is_edit_mode:
             self.load_existing_data()
 
-        # Buttons
         button_layout = QHBoxLayout()
         save_btn = QPushButton("Save Book")
         StyleManager.style_primary_button(save_btn)
@@ -222,7 +216,6 @@ class BookFormDialog(QDialog):
             QMessageBox.warning(self, "Validation Error", "Title and Author are required.")
             return None
 
-        # Create or update Book model
         if self.is_edit_mode:
             book = self.book_model
         else:
@@ -235,17 +228,14 @@ class BookFormDialog(QDialog):
         book.publication_year = self.pub_year_input.value()
         book.total_copies = self.total_copies_input.value()
         
-        # Handle available copies for new books
         if not self.is_edit_mode:
             book.available_copies = book.total_copies
         else:
-            # For edits, adjust available copies based on change in total
             old_total = self.book_model.total_copies
             new_total = book.total_copies
             old_available = self.book_model.available_copies
             book.available_copies = max(0, old_available + (new_total - old_total))
 
-        # Handle image
         if self.selected_image_path and self.selected_image_path != book.image_path:
             if book.id:
                 success, image_path = book.save_image(self.selected_image_path)

@@ -1,6 +1,6 @@
 import mysql.connector as connector
 from mysql.connector import Error
-from config import Config
+
 
 class DatabaseManager:
     """
@@ -16,7 +16,6 @@ class DatabaseManager:
             user: MySQL username
             password: MySQL password
         """
-        # Load from saved config or use provided values
         if not all([host, database, user]) and password is None:
             from db_setup_dialog import load_db_config
             saved_config = load_db_config()
@@ -26,7 +25,6 @@ class DatabaseManager:
                 user = saved_config.get('user', 'root')
                 password = saved_config.get('password', '')
             else:
-                # Use defaults if no config found
                 host = host or 'localhost'
                 database = database or 'library_db'
                 user = user or 'root'
@@ -45,7 +43,6 @@ class DatabaseManager:
     def _connect(self):
         """Establishes a connection to the MySQL server."""
         try:
-            # First connect without specifying database to create it if needed
             self.conn = connector.connect(
                 host=self.host,
                 user=self.user,
@@ -55,7 +52,7 @@ class DatabaseManager:
             print(f"Successfully connected to MySQL server: {self.host}")
         except Error as e:
             print(f"Database connection error: {e}")
-            raise  # Re-raise to let caller handle it
+            raise
 
     def _create_database(self):
         """Creates the database if it doesn't exist."""
@@ -77,7 +74,6 @@ class DatabaseManager:
             return
 
         try:
-            # Users table: Stores user information (readers and librarians)
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -89,7 +85,6 @@ class DatabaseManager:
                 )
             """)
             
-            # Books table: Stores book information
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS books (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -104,7 +99,6 @@ class DatabaseManager:
                 )
             """)
 
-            # Loans table: Tracks borrowed books
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS loans (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -180,11 +174,9 @@ def get_db_manager():
     from db_setup_dialog import load_db_config, save_db_config, DatabaseSetupDialog
     from PySide6.QtWidgets import QApplication, QMessageBox, QDialog
     
-    # Try to load existing config
     config = load_db_config()
     
     if not config:
-        # Show setup dialog
         app = QApplication.instance()
         if not app:
             app = QApplication([])
@@ -221,7 +213,6 @@ def get_db_manager():
         return None
 
 
-# Global database manager instance
 db_manager = None
 
 

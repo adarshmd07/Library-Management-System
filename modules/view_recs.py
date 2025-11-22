@@ -1,8 +1,3 @@
-"""
-View Records Module
-Handles displaying and retrieving records from the database.
-"""
-
 from models.book import Book
 from models.user import User
 from models.transaction import Transaction
@@ -31,7 +26,7 @@ class ViewRecordsModule:
         Retrieve all users from the database.
         
         Args:
-            user_type: Optional filter for user type (e.g., "reader", "librarian")
+            user_type: Optional filter for user type
             
         Returns:
             tuple: (success: bool, data: list or error_message: str)

@@ -1,8 +1,3 @@
-"""
-Add Records Module
-Handles adding new records (books, users, loans) to the database.
-"""
-
 from PySide6.QtWidgets import QMessageBox, QDialog
 from models.book import Book
 from models.user import User
@@ -31,7 +26,6 @@ class AddRecordsModule:
                 if book:
                     success, result = book.save()
                     if success:
-                        # Handle image save if temporary image path exists
                         if hasattr(book, '_temp_image_path'):
                             book.save_image(book._temp_image_path)
                         return True, "Book added successfully!", book
@@ -82,7 +76,6 @@ class AddRecordsModule:
             tuple: (success: bool, message: str, transaction: Transaction or None)
         """
         try:
-            # Create new transaction
             transaction = Transaction(
                 book_id=book_id,
                 user_id=user_id,
