@@ -211,21 +211,53 @@ class LoanCard(QFrame):
         
         bottom_layout = QHBoxLayout()
         bottom_layout.addStretch()
-        
+
         if self.loan_data.get("status", "").lower() == "active":
-            self.renew_btn = QPushButton("Renew Loan")
-            StyleManager.style_primary_button(self.renew_btn)
-            self.renew_btn.setMinimumWidth(100)
-            self.renew_btn.setMaximumWidth(120)
+            self.renew_btn = QPushButton("Renew")
+            self.renew_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #3b82f6;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 8px 16px;
+                    font-weight: 600;
+                    font-size: 13px;
+                    min-width: 90px;
+                    max-width: 110px;
+                }
+                QPushButton:hover {
+                    background-color: #2563eb;
+                }
+                QPushButton:pressed {
+                    background-color: #1d4ed8;
+                }
+            """)
             self.renew_btn.clicked.connect(lambda: self.renew_button_clicked.emit(self.loan_data.get("id")))
             bottom_layout.addWidget(self.renew_btn)
-        
+
         if self.loan_data.get("status", "").lower() in ["active", "overdue"]:
-            self.return_btn = QPushButton("Return Book")
-            StyleManager.style_secondary_button(self.return_btn)
-            self.return_btn.setMinimumWidth(100)
-            self.return_btn.setMaximumWidth(120)
+            self.return_btn = QPushButton("Return")
+            self.return_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #10b981;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 8px 16px;
+                    font-weight: 600;
+                    font-size: 13px;
+                    min-width: 90px;
+                    max-width: 110px;
+                }
+                QPushButton:hover {
+                    background-color: #059669;
+                }
+                QPushButton:pressed {
+                    background-color: #047857;
+                }
+            """)
             self.return_btn.clicked.connect(lambda: self.return_button_clicked.emit(self.loan_data.get("id")))
             bottom_layout.addWidget(self.return_btn)
-        
+
         layout.addLayout(bottom_layout)

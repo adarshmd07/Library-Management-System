@@ -657,34 +657,56 @@ class ReaderDashboard(QWidget):
             success, result = Transaction.renew_loan(loan_id)
             
             if success:
+                loan = result  # result is the Transaction object
                 QMessageBox.information(self, "Renewal Successful", 
-                                      "Your book has been renewed successfully!\n"
-                                      f"New due date: {result.due_date}")
+                                    f"Your book has been renewed successfully!\n"
+                                    f"New due date: {loan.due_date}")
                 self.load_data()  # Refresh all data
             else:
                 QMessageBox.warning(self, "Renewal Failed", result)
-                
+                    
         except Exception as e:
             print(f"Error during renewal: {e}")
             QMessageBox.critical(self, "System Error", 
-                               "An error occurred while processing your renewal.")
-    
+                            "An error occurred while processing your renewal.")
+
     def handle_return(self, loan_id):
         """Handle book return request."""
         try:
-            success, result = Transaction.return_loan(loan_id)
+            # Get the loan first to show book title
+            loan = Transaction.find_by_id(loan_id)
+            if not loan:
+                QMessageBox.warning(self, "Error", "Loan not found.")
+                return
+            
+            book = loan.get_book()
+            book_title = book.title if book else "this book"
+            
+            # Confirm return
+            reply = QMessageBox.question(
+                self, 
+                "Confirm Return", 
+                f'Are you sure you want to return "{book_title}"?',
+                QMessageBox.Yes | QMessageBox.No, 
+                QMessageBox.No
+            )
+            
+            if reply != QMessageBox.Yes:
+                return
+            
+            success, message = Transaction.return_loan(loan_id)
             
             if success:
                 QMessageBox.information(self, "Return Successful", 
-                                      "Book returned successfully! Thank you.")
+                                    "Book returned successfully! Thank you.")
                 self.load_data()  # Refresh all data
             else:
-                QMessageBox.warning(self, "Return Failed", result)
-                
+                QMessageBox.warning(self, "Return Failed", message)
+                    
         except Exception as e:
             print(f"Error during return: {e}")
             QMessageBox.critical(self, "System Error", 
-                               "An error occurred while processing your return.")
+                            "An error occurred while processing your return.")
 
     def handle_logout(self):
         """Handle user logout."""

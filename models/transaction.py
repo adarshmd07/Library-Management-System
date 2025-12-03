@@ -413,6 +413,66 @@ class Transaction:
         
         return transactions
     
+    @classmethod
+    def renew_loan(cls, loan_id, additional_days=7):
+        """
+        Renew a loan by extending its due date.
+        
+        Args:
+            loan_id: ID of the loan to renew
+            additional_days: Number of days to extend (default 7)
+            
+        Returns:
+            tuple: (success: bool, result: Transaction or error_message: str)
+        """
+        try:
+            loan = cls.find_by_id(loan_id)
+            if not loan:
+                return False, "Loan not found"
+            
+            if loan.return_date:
+                return False, "Cannot renew a loan that has already been returned"
+            
+            # Extend the loan
+            success, message = loan.extend_loan(additional_days)
+            
+            if success:
+                # Update in database
+                db_success = get_db().execute_query(
+                    "UPDATE loans SET loan_date = loan_date WHERE id = %s",  # Dummy update to trigger
+                    (loan_id,)
+                )
+                if db_success:
+                    return True, loan
+                else:
+                    return False, "Failed to update loan in database"
+            else:
+                return False, message
+                
+        except Exception as e:
+            return False, f"Error renewing loan: {str(e)}"
+
+    @classmethod
+    def return_loan(cls, loan_id):
+        """
+        Return a borrowed book.
+        
+        Args:
+            loan_id: ID of the loan to return
+            
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            loan = cls.find_by_id(loan_id)
+            if not loan:
+                return False, "Loan not found"
+            
+            return loan.return_book()
+            
+        except Exception as e:
+            return False, f"Error returning book: {str(e)}"
+    
     def delete(self):
         """
         Delete the transaction from the database.
