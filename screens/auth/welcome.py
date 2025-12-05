@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QPixmap
 from utils import resource_path
+from config import Config  
 
 
 class WelcomeScreen(QWidget):
@@ -174,6 +175,20 @@ class WelcomeScreen(QWidget):
         self.action_layout.addWidget(self.back_btn)
         
         card_layout.addLayout(self.action_layout)
+        
+        # Add version label at the bottom of the card
+        version_label = QLabel(Config.VERSION)
+        version_label.setStyleSheet("""
+            QLabel {
+                color: rgba(255, 255, 255, 150);  /* White with 60% opacity */
+                font-style: italic;
+                font-size: 11px;
+                padding: 0;
+                margin: 0;
+            }
+        """)
+        version_label.setAlignment(Qt.AlignCenter)
+        card_layout.addWidget(version_label)
         
         background_layout.addWidget(card, alignment=Qt.AlignCenter)
         background_layout.addStretch()

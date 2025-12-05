@@ -24,5 +24,4 @@ The Library Management System is a desktop application built with Python, PySide
 - PySide6 – GUI framework
 - MySQL – Database backend
 - mysql.connector – Database connectivity
-- JSON – Config storage
 - Custom modules – For models, screens, widgets, and utilities

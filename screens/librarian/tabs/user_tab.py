@@ -129,14 +129,17 @@ class UserTab(QWidget):
         self.display_users(filtered_users)
 
     def display_users(self, users):
-        """Display users in the table."""
+        """Display users in the table sorted by latest first."""
         if not self.users_table:
             return
             
         try:
+            # Sort users by ID in descending order (latest first)
+            sorted_users = sorted(users, key=lambda x: x.id, reverse=True)
+            
             self.users_table.setRowCount(0)
             
-            for row_idx, user in enumerate(users):
+            for row_idx, user in enumerate(sorted_users):
                 self.users_table.insertRow(row_idx)
                 
                 columns = [

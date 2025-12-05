@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from PySide6.QtWidgets import QApplication, QStackedWidget, QMessageBox
+from PySide6.QtWidgets import QApplication, QStackedWidget, QMessageBox, QSizePolicy
 from PySide6.QtGui import QIcon
 from PySide6.QtCore import Qt
 from screens.auth.welcome import WelcomeScreen  
@@ -26,58 +26,62 @@ class LibraryApp:
         self.style_manager = StyleManager()
         
         self.app.setApplicationName("LibraryManagementSystem")
-        self.app.setApplicationDisplayName(Config.APP_NAME)
+        self.app.setApplicationDisplayName(f"{Config.APP_NAME} {Config.VERSION}")
         self.app.setOrganizationName("LibraryManagement")
         self.app.setOrganizationDomain("librarymanagement.com")
         
         self.set_windows_app_user_model_id()
-        self.set_app_icon()
         
         if not self.init_database():
-            QMessageBox.critical(
-                None,
-                "Database Error",
-                "Failed to initialize database. Application will exit."
-            )
-            sys.exit(1)
+            # User cancelled or connection failed - exit silently
+            sys.exit(0)
             
         self.init_ui()
+        self.set_app_icon()
 
     def set_windows_app_user_model_id(self):
         """Windows-specific method to ensure proper taskbar icon handling."""
         try:
             import ctypes
-            myappid = 'Library.Management.System.1.0'
+            # Keep the version exactly as it is in Config.VERSION
+            myappid = f'Library.Management.System.{Config.VERSION}'
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
             pass
 
     def set_app_icon(self):
-        """Set application icon with fallback options."""
+        """Set application icon."""
         base_dir = Path(__file__).parent
         
-        icon_files = [
-            "app_icon.ico",
-            "app_icon.png",
-            "lms.png",
-        ]
+        # Try to find an icon
+        icon_files = ["app_icon.ico", "app_icon.png", "lms.png"]
         
         for icon_file in icon_files:
             icon_path = base_dir / "assets" / icon_file
             if icon_path.exists():
                 try:
-                    app_icon = QIcon(str(icon_path))
-                    self.app.setWindowIcon(app_icon)
-                    break
-                except Exception:
+                    # Create icon
+                    icon = QIcon(str(icon_path))
+                    
+                    # Set icon
+                    self.app.setWindowIcon(icon)
+                    if hasattr(self, 'stack'):
+                        self.stack.setWindowIcon(icon)
+                    
+                    return
+                except Exception as e:
+                    print(f"Error loading icon {icon_file}: {e}")
                     continue
+        
+        print("No icon file found")
 
     def init_database(self):
         """Initialize database and create sample data if needed."""
         try:
-            db_manager = get_db_manager()
+            db_manager, was_cancelled = get_db_manager()
             
             if not db_manager:
+                # Don't show error if user just cancelled
                 return False
             
             set_db_manager(db_manager)
@@ -96,6 +100,12 @@ class LibraryApp:
             print(f"Database initialization error: {e}")
             import traceback
             traceback.print_exc()
+            # Show error popup only for unexpected errors
+            QMessageBox.critical(
+                None,
+                "Database Error",
+                f"An unexpected error occurred during database initialization:\n{str(e)}"
+            )
             return False
     
     def create_sample_data(self):
@@ -142,14 +152,17 @@ class LibraryApp:
                     
         except Exception as e:
             print(f"Error creating sample data: {e}")
-    
+            import traceback
+            traceback.print_exc()
+
     def init_ui(self):
         """Initialize the user interface."""
         self.stack = QStackedWidget()
         self.init_screens()
         self.apply_styles()
         
-        self.stack.setWindowTitle(Config.APP_NAME)
+        # Window configuration - RESTORED OLD SIZE PROPERTIES
+        self.stack.setWindowTitle(f"{Config.APP_NAME} {Config.VERSION}")
         self.stack.setMinimumSize(1200, 800)
         
         screen_geometry = self.app.primaryScreen().availableGeometry()
@@ -161,6 +174,7 @@ class LibraryApp:
         y = (screen_geometry.height() - height) // 2
         self.stack.move(x, y)
         
+        # Set window flags
         self.stack.setWindowFlags(
             Qt.Window |
             Qt.CustomizeWindowHint |
@@ -170,6 +184,9 @@ class LibraryApp:
             Qt.WindowMaximizeButtonHint |
             Qt.WindowCloseButtonHint
         )
+        
+        # Make window resizable
+        self.stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
         self.stack.setWindowState(Qt.WindowNoState)
         self.stack.show()
@@ -201,6 +218,7 @@ class LibraryApp:
         
         for screen in screens:
             self.stack.addWidget(screen)
+            screen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def switch_to_welcome(self):
         """Switch to welcome screen and reset user state."""

@@ -128,14 +128,17 @@ class LoanTab(QWidget):
         self.display_loans(filtered_loans)
 
     def display_loans(self, loans):
-        """Display loans in the table."""
+        """Display loans in the table sorted by latest first."""
         if not self.loans_table:
             return
             
         try:
+            # Sort loans by ID in descending order (latest first)
+            sorted_loans = sorted(loans, key=lambda x: x.id, reverse=True)
+            
             self.loans_table.setRowCount(0)
             
-            for row_idx, loan in enumerate(loans):
+            for row_idx, loan in enumerate(sorted_loans):
                 self.loans_table.insertRow(row_idx)
                 
                 book = loan.get_book()
@@ -201,33 +204,112 @@ class LoanTab(QWidget):
     def mark_loan_returned(self, loan=None):
         """Mark loan as returned using UpdateRecordsModule."""
         try:
+            # Handle the case where False is passed (from direct button click)
+            if isinstance(loan, bool) and loan is False:
+                loan = None
+                print("Converted False parameter to None")
+            
             if loan is None:
+                # Get selected rows
                 selected_rows = self.loans_table.selectionModel().selectedRows()
+                
                 if not selected_rows:
-                    QMessageBox.warning(self, "No Selection", "Please select a loan to mark as returned.")
+                    QMessageBox.warning(self, "No Selection", "Please select one or more loans to mark as returned.")
                     return
-                loan_id = int(self.loans_table.item(selected_rows[0].row(), 0).text())
-                # Use view module to get loan by ID
-                success, loan = ViewRecordsModule.get_loan_by_id(loan_id)
-                if not success:
-                    QMessageBox.warning(self, "Error", loan)
+                
+                # Get loan IDs from all selected rows
+                loan_ids = []
+                for row in selected_rows:
+                    row_index = row.row()
+                    loan_id_item = self.loans_table.item(row_index, 0)
+                    if loan_id_item:
+                        try:
+                            loan_id = int(loan_id_item.text())
+                            loan_ids.append(loan_id)
+                            print(f"Selected loan ID: {loan_id} at row {row_index}")
+                        except ValueError as e:
+                            print(f"Invalid loan ID at row {row_index}: {e}")
+                
+                if not loan_ids:
+                    QMessageBox.warning(self, "Error", "Could not retrieve loan IDs from selected rows.")
                     return
+                
+                # Process each selected loan
+                loans_to_return = []
+                for loan_id in loan_ids:
+                    success, result = ViewRecordsModule.get_loan_by_id(loan_id)
+                    if success and result and not result.return_date:
+                        loans_to_return.append(result)
+                        print(f"Found active loan to return: ID {loan_id}")
+                    elif success and result:
+                        print(f"Loan {loan_id} already returned")
+                
+                if not loans_to_return:
+                    QMessageBox.information(self, "No Active Loans", "All selected loans are already returned.")
+                    return
+                
+                # Confirm return for multiple loans
+                if len(loans_to_return) == 1:
+                    book = loans_to_return[0].get_book()
+                    book_title = book.title if book else "selected book"
+                    confirm_msg = f"Mark '{book_title}' as returned?"
+                else:
+                    confirm_msg = f"Mark {len(loans_to_return)} selected loan(s) as returned?"
+                
+                reply = QMessageBox.question(
+                    self, 
+                    "Confirm Return", 
+                    confirm_msg,
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    successful_returns = 0
+                    for loan_obj in loans_to_return:
+                        success, message = UpdateRecordsModule.return_book(loan_obj)
+                        if success:
+                            successful_returns += 1
+                            print(f"Successfully returned loan {loan_obj.id}")
+                        else:
+                            print(f"Failed to return loan {loan_obj.id}: {message}")
+                    
+                    if successful_returns > 0:
+                        QMessageBox.information(
+                            self, 
+                            "Success", 
+                            f"Successfully marked {successful_returns} loan(s) as returned."
+                        )
+                        self.load_loans_data()
+                        # Refresh books tab if needed
+                        if hasattr(self.parent, 'book_tab'):
+                            self.parent.book_tab.load_books_data()
+                    else:
+                        QMessageBox.warning(self, "Error", "Failed to mark any loans as returned.")
+                return  # Exit after handling multiple selection
+            
+            # Handle single loan from Return button in table
+            print(f"Processing single loan: {loan}")
             
             if not loan:
                 QMessageBox.warning(self, "Error", "Loan not found.")
                 return
-                
+            
+            # Check if already returned
             if loan.return_date:
                 QMessageBox.information(self, "Already Returned", "This loan has already been marked as returned.")
                 return
             
             book = loan.get_book()
             book_title = book.title if book else "this book"
+            print(f"Book title: {book_title}")
             
             # Confirm return using update module
             if UpdateRecordsModule.confirm_return(self, book_title):
+                print("User confirmed return, processing...")
                 # Use update module to return book
                 success, message = UpdateRecordsModule.return_book(loan)
+                print(f"Return result: success={success}, message={message}")
                 
                 if success:
                     UpdateRecordsModule.show_update_result(self, success, message)
@@ -237,9 +319,14 @@ class LoanTab(QWidget):
                         self.parent.book_tab.load_books_data()
                 else:
                     UpdateRecordsModule.show_update_result(self, success, message)
-                    
+            else:
+                print("User cancelled return")
+                        
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
+            print(f"EXCEPTION in mark_loan_returned: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}\n\nCheck console for details.")
 
     def delete_loan(self, loan):
         """Delete loan using DeleteRecordsModule."""

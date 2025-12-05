@@ -1,5 +1,3 @@
-import json
-from pathlib import Path
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                                QLineEdit, QPushButton, QMessageBox, QGroupBox)
 from PySide6.QtCore import Qt
@@ -9,12 +7,12 @@ import mysql.connector as connector
 
 class DatabaseSetupDialog(QDialog):
     """
-    First-time setup dialog for database configuration.
-    Saves credentials securely for future use.
+    Database configuration dialog - credentials required on each startup.
+    No credentials are saved for security.
     """
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Database Setup - First Time Configuration")
+        self.setWindowTitle("Database Login")
         self.setModal(True)
         self.setMinimumWidth(500)
         self.db_config = None
@@ -24,7 +22,7 @@ class DatabaseSetupDialog(QDialog):
         """Initialize the user interface."""
         layout = QVBoxLayout()
         
-        title = QLabel("Database Configuration")
+        title = QLabel("MySQL Database Login")
         title_font = QFont()
         title_font.setPointSize(16)
         title_font.setBold(True)
@@ -33,8 +31,8 @@ class DatabaseSetupDialog(QDialog):
         layout.addWidget(title)
         
         desc = QLabel(
-            "Please enter your MySQL database credentials.\n"
-            "These will be saved locally for future use."
+            "Please enter your MySQL database credentials to continue.\n"
+            "Credentials are not stored for security reasons."
         )
         desc.setWordWrap(True)
         desc.setAlignment(Qt.AlignCenter)
@@ -104,9 +102,9 @@ class DatabaseSetupDialog(QDialog):
             }
         """)
         
-        self.save_btn = QPushButton("Save && Continue")
-        self.save_btn.clicked.connect(self.save_and_close)
-        self.save_btn.setStyleSheet("""
+        self.connect_btn = QPushButton("Connect")
+        self.connect_btn.clicked.connect(self.connect_and_close)
+        self.connect_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2ecc71;
                 color: white;
@@ -119,18 +117,38 @@ class DatabaseSetupDialog(QDialog):
             }
         """)
         
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self.reject)
+        self.cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #95a5a6;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #7f8c8d;
+            }
+        """)
+        
         button_layout.addWidget(self.test_btn)
-        button_layout.addWidget(self.save_btn)
+        button_layout.addWidget(self.connect_btn)
+        button_layout.addWidget(self.cancel_btn)
         layout.addLayout(button_layout)
         
         help_text = QLabel(
-            "💡 Tip: Click 'Test Connection' first to verify your credentials work."
+            "🔒 For security, your password must be entered each time you start the application."
         )
         help_text.setWordWrap(True)
         help_text.setStyleSheet("color: #888; font-size: 11px; margin: 10px;")
         layout.addWidget(help_text)
         
         self.setLayout(layout)
+        
+        # Set focus to password field if other fields are filled
+        if self.host_input.text() and self.db_input.text() and self.user_input.text():
+            self.pass_input.setFocus()
     
     def test_connection(self):
         """Test the database connection with provided credentials."""
@@ -192,8 +210,8 @@ class DatabaseSetupDialog(QDialog):
                     f"Database connection error:\n{error_msg}"
                 )
     
-    def save_and_close(self):
-        """Save configuration and close dialog."""
+    def connect_and_close(self):
+        """Validate connection and close dialog."""
         host = self.host_input.text().strip()
         database = self.db_input.text().strip()
         user = self.user_input.text().strip()
@@ -203,10 +221,11 @@ class DatabaseSetupDialog(QDialog):
             QMessageBox.warning(
                 self,
                 "Missing Information",
-                "Please fill in all required fields."
+                "Please fill in all required fields (password can be empty if not set)."
             )
             return
         
+        # Test connection before accepting
         try:
             conn = connector.connect(
                 host=host,
@@ -219,50 +238,24 @@ class DatabaseSetupDialog(QDialog):
             cursor.close()
             conn.close()
             
+            # Connection successful, store config
+            self.db_config = {
+                'host': host,
+                'database': database,
+                'user': user,
+                'password': password
+            }
+            
+            self.accept()
+            
         except connector.Error as e:
-            reply = QMessageBox.question(
+            QMessageBox.critical(
                 self,
                 "Connection Failed",
                 f"Cannot connect to database:\n{str(e)}\n\n"
-                "Do you want to save these settings anyway?",
-                QMessageBox.Yes | QMessageBox.No
+                "Please check your credentials and try again."
             )
-            if reply == QMessageBox.No:
-                return
-        
-        self.db_config = {
-            'host': host,
-            'database': database,
-            'user': user,
-            'password': password
-        }
-        
-        self.accept()
     
     def get_config(self):
         """Return the database configuration."""
         return self.db_config
-
-
-def save_db_config(config, config_file='db_config.json'):
-    """Save database configuration to a JSON file."""
-    config_path = Path(__file__).parent / config_file
-    try:
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=4)
-        return True
-    except Exception as e:
-        print(f"Error saving config: {e}")
-        return False
-
-
-def load_db_config(config_file='db_config.json'):
-    """Load database configuration from JSON file."""
-    config_path = Path(__file__).parent / config_file
-    if config_path.exists():
-        try:
-            with open(config_path, 'r') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"Error loading config: {e}")
-    return None

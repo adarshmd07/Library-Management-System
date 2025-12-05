@@ -6,7 +6,7 @@ class DatabaseManager:
     """
     Manages MySQL database connections and operations for the library system.
     """
-    def __init__(self, host=None, database=None, user=None, password=None):
+    def __init__(self, host, database, user, password):
         """
         Initializes the DatabaseManager, connecting to MySQL database.
         
@@ -16,20 +16,6 @@ class DatabaseManager:
             user: MySQL username
             password: MySQL password
         """
-        if not all([host, database, user]) and password is None:
-            from db_setup_dialog import load_db_config
-            saved_config = load_db_config()
-            if saved_config:
-                host = saved_config.get('host', 'localhost')
-                database = saved_config.get('database', 'library_db')
-                user = saved_config.get('user', 'root')
-                password = saved_config.get('password', '')
-            else:
-                host = host or 'localhost'
-                database = database or 'library_db'
-                user = user or 'root'
-                password = password or ''
-        
         self.host = host
         self.database = database
         self.user = user
@@ -169,48 +155,40 @@ class DatabaseManager:
 def get_db_manager():
     """
     Get or create database manager instance.
-    Shows setup dialog if configuration doesn't exist.
+    Shows login dialog to get credentials (no storage).
+    Returns tuple: (DatabaseManager or None, was_cancelled: bool)
     """
-    from db_setup_dialog import load_db_config, save_db_config, DatabaseSetupDialog
+    from db_setup_dialog import DatabaseSetupDialog
     from PySide6.QtWidgets import QApplication, QMessageBox, QDialog
     
-    config = load_db_config()
+    app = QApplication.instance()
+    if not app:
+        app = QApplication([])
     
-    if not config:
-        app = QApplication.instance()
-        if not app:
-            app = QApplication([])
-        
-        dialog = DatabaseSetupDialog()
-        result = dialog.exec()
-        
-        if result == QDialog.DialogCode.Accepted:
-            config = dialog.get_config()
-            if config:
-                save_db_config(config)
-        else:
-            QMessageBox.critical(
-                None,
-                "Setup Required",
-                "Database configuration is required to run the application."
-            )
-            return None
+    dialog = DatabaseSetupDialog()
+    result = dialog.exec()
     
-    try:
-        return DatabaseManager(
-            host=config['host'],
-            database=config['database'],
-            user=config['user'],
-            password=config['password']
-        )
-    except Exception as e:
-        QMessageBox.critical(
-            None,
-            "Database Error",
-            f"Failed to connect to database:\n{str(e)}\n\n"
-            "Please check your MySQL server is running and try again."
-        )
-        return None
+    if result == QDialog.DialogCode.Accepted:
+        config = dialog.get_config()
+        if config:
+            try:
+                return DatabaseManager(
+                    host=config['host'],
+                    database=config['database'],
+                    user=config['user'],
+                    password=config['password']
+                ), False
+            except Exception as e:
+                QMessageBox.critical(
+                    None,
+                    "Database Error",
+                    f"Failed to connect to database:\n{str(e)}\n\n"
+                    "Please check your MySQL server is running and try again."
+                )
+                return None, False
+    
+    # User cancelled or closed the dialog - no error popup
+    return None, True
 
 
 db_manager = None

@@ -129,14 +129,17 @@ class BookTab(QWidget):
         self.display_books(filtered_books)
 
     def display_books(self, books):
-        """Display books in the table."""
+        """Display books in the table sorted by latest first."""
         if not self.books_table:
             return
             
         try:
+            # Sort books by ID in descending order (latest first)
+            sorted_books = sorted(books, key=lambda x: x.id, reverse=True)
+            
             self.books_table.setRowCount(0)
                         
-            for row, book in enumerate(books):
+            for row, book in enumerate(sorted_books):
                 self.books_table.insertRow(row)
                                 
                 columns = [

@@ -8,7 +8,7 @@ class Config:
     Defines application-wide settings, paths, and UI colors.
     """
     APP_NAME = "Library Management System"
-    VERSION = "1.0.0"
+    VERSION = "v.0.6"  
     
     BASE_DIR = Path(__file__).resolve().parent
     ASSETS_DIR = BASE_DIR / "assets"
