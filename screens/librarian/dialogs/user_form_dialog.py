@@ -118,7 +118,7 @@ class UserFormDialog(QDialog):
 
     def load_existing_data(self):
         """Load data from User model."""
-        if not self.book_model:
+        if not self.user_model:
             return
             
         self.full_name_input.setText(self.user_model.full_name or "")
